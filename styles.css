@@ -120,6 +120,10 @@ a {
 .navigation {
     display: flex;
     gap: 2rem;
+    justify-content: center;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
 }
 
 .nav-link {
@@ -141,6 +145,80 @@ a {
 .cta-buttons {
     display: flex;
     gap: 1rem;
+}
+
+/* Mobile menu */
+.hamburger-menu {
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 30px;
+    height: 21px;
+    cursor: pointer;
+    z-index: 10000;
+    position: fixed;
+    top: 1.5rem;
+    right: 1.5rem;
+}
+
+.hamburger-menu span {
+    display: block;
+    height: 3px;
+    width: 100%;
+    background-color: #fff;
+    border-radius: 3px;
+    transition: all 0.3s ease;
+
+}
+
+.mobile-nav {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.98);
+    z-index: 9999;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 2rem;
+    transform: translateY(-100%);
+    transition: transform 0.3s ease;
+    padding: 2rem;
+}
+
+.mobile-nav.active {
+    transform: translateY(0);
+}
+
+.mobile-nav .nav-link {
+    font-size: 24px;
+    padding: 1rem 2rem;
+    width: 100%;
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+}
+
+.mobile-nav .btn-primary {
+    margin-top: 1rem;
+    width: 100%;
+    font-size: 20px;
+}
+
+.hamburger-menu.active span:nth-child(1) {
+    transform: translateY(9px) rotate(45deg);
+}
+
+.hamburger-menu.active span:nth-child(2) {
+    opacity: 0;
+}
+
+.hamburger-menu.active span:nth-child(3) {
+    transform: translateY(-9px) rotate(-45deg);
 }
 
 .btn {
@@ -217,6 +295,7 @@ a {
     z-index: 2;
     width: 100%;
     max-width: 1200px;
+    margin-top: -5rem; /* Move content up to avoid collision with globe */
 }
 
 .content-wrapper {
@@ -319,20 +398,36 @@ a {
     }
     .hero-description {
         font-size: 1rem;
+        padding: 0 1rem;
+    }
+    .hero-description br {
+        display: none;
     }
     .header {
         padding: 1rem;
-        flex-direction: column;
+        flex-direction: row;
         align-items: center;
+        justify-content: space-between;
     }
     .navigation {
-        margin: 1rem 0;
-        flex-wrap: wrap;
-        justify-content: center;
+        display: none;
+    }
+    .hamburger-menu {
+        display: flex;
+    }
+    .mobile-nav {
+        display: flex;
     }
     .cta-buttons {
-        width: 100%;
-        justify-content: center;
+        display: none;
+    }
+    .hero-cta .btn {
+        white-space: normal;
+        height: auto;
+        min-height: 48px;
+        padding: 0.75rem 1.25rem;
+        font-size: 0.9rem;
+        line-height: 1.2;
     }
 }
 

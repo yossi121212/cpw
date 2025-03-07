@@ -75,6 +75,23 @@
         </div>
     </div>
     
+    <!-- Hamburger Menu and Mobile Navigation moved outside all containers -->
+    <div class="hamburger-menu">
+        <span></span>
+        <span></span>
+        <span></span>
+    </div>
+    
+    <!-- Mobile Navigation -->
+    <div class="mobile-nav">
+        <a href="#" class="nav-link">Solutions</a>
+        <a href="#" class="nav-link">Technology</a>
+        <a href="#" class="nav-link">Services</a>
+        <a href="#" class="nav-link">Resources</a>
+        <a href="#" class="nav-link">About Us</a>
+        <a href="#" class="btn btn-primary">Get Protected</a>
+    </div>
+    
     <script type="module">
         import * as THREE from 'three';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -692,6 +709,15 @@
           window.addEventListener('mousemove',  mousemove.bind(this));
           window.addEventListener('mousedown',  mousedown.bind(this));
           window.addEventListener('mouseup',    mouseup.bind(this));
+
+          // Hamburger menu toggle
+          const hamburger = document.querySelector('.hamburger-menu');
+          const mobileNav = document.querySelector('.mobile-nav');
+          
+          hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            mobileNav.classList.toggle('active');
+          });
 
         }
 
