@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberShield AI - Advanced Cyber Security</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Three.js and GSAP Libraries -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.151.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.151.0/examples/jsm/"
+        }
+      }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.5/gsap.min.js" integrity="sha512-cOH8ndwGgPo+K7pTvMrqYbmI8u8k6Sho3js0gOqVWTmQMlLIi6TbqGWRTpf1ga8ci9H3iPsvDLr4X7xwhC/+DQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+    <div class="hero-container">
+        <div class="background-gradient"></div>
+        
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">
+                    <div class="arrow-icon">
+                        <div class="arrow-right"></div>
+                    </div>
+                </div>
+                <span class="logo-text">CyberShield AI</span>
+            </div>
+            
+            <nav class="navigation">
+                <a href="#" class="nav-link">Solutions</a>
+                <a href="#" class="nav-link">Technology</a>
+                <a href="#" class="nav-link">Services</a>
+                <a href="#" class="nav-link">Resources</a>
+                <a href="#" class="nav-link">About Us</a>
+            </nav>
+            
+            <div class="cta-buttons">
+                <a href="#" class="btn btn-primary">Get Protected</a>
+            </div>
+        </header>
+        
+        <main class="hero-content">
+            <div class="content-wrapper">
+                <h1 class="hero-title">
+                    AI-Powered<br>
+                    Cyber Defense
+                </h1>
+                <p class="hero-description">
+                    CyberShield AI uses advanced machine learning to detect<br>
+                    and neutralize threats before they breach your systems.
+                </p>
+                
+                <div class="hero-cta">
+                    <a href="#" class="btn btn-primary btn-large">Schedule a Demo</a>
+                    <a href="#" class="btn btn-outline">
+                        Threat Assessment
+                        <span class="play-icon">▶</span>
+                    </a>
+                </div>
+            </div>
+        </main>
+        
+        <!-- Earth Globe Container -->
+        <div class="globe-container">
+            <canvas class="canvas"></canvas>
+        </div>
+    </div>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const vertex = `
+          #ifdef GL_ES
+          precision mediump float;
+          #endif
+
+          uniform float u_time;
+          uniform float u_maxExtrusion;
+
+          void main() {
+
+            vec3 newPosition = position;
+            if(u_maxExtrusion > 1.0) newPosition.xyz = newPosition.xyz * u_maxExtrusion + sin(u_time);
+            else newPosition.xyz = newPosition.xyz * u_maxExtrusion;
+
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( newPosition, 1.0 );
+
+          }
+        `;
+        const fragment = `
+          #ifdef GL_ES
+          precision mediump float;
+          #endif
+
+          uniform float u_time;
+
+          vec3 colorA = vec3(0.086, 0.639, 0.290); // Softer green #16A34A
+          vec3 colorB = vec3(0.047, 0.431, 0.196); // Darker green #0B6E32
+
+          void main() {
+
+            vec3  color = vec3(0.0);
+            float pct   = abs(sin(u_time));
+                  color = mix(colorA, colorB, pct);
+
+            gl_FragColor = vec4(color, 0.85); // Added transparency for glass effect
+
+          }
+        `;
+
+        const container = document.querySelector('.globe-container');
+        const canvas    = document.querySelector('.canvas');
+
+        let
+        sizes,
+        scene,
+        camera,
+        renderer,
+        controls,
+        raycaster,
+        mouse,
+        isIntersecting,
+        twinkleTime,
+        materials,
+        material,
+        baseMesh,
+        minMouseDownFlag,
+        mouseDown,
+        grabbing;
+
+        const setScene = () => {
+          console.log("Setting up scene...");
+          sizes = {
+            width:  container.offsetWidth,
+            height: container.offsetHeight
+          };
+
+          scene = new THREE.Scene();
+
+          camera = new THREE.PerspectiveCamera(
+            30, 
+            sizes.width / sizes.height, 
+            1, 
+            1000
+          );
+          camera.position.z = 100;
+          
+          renderer = new THREE.WebGLRenderer({
+            canvas:     canvas,
+            antialias:  true,
+            alpha:      true
+          });
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+          const pointLight = new THREE.PointLight(0x16A34A, 12, 200);
+          pointLight.position.set(-50, 0, 60);
+          scene.add(pointLight);
+          scene.add(new THREE.HemisphereLight(0x16A34A, 0x080820, 1.2));
+
+          raycaster         = new THREE.Raycaster();
+          mouse             = new THREE.Vector2();
+          isIntersecting    = false;
+          minMouseDownFlag  = false;
+          mouseDown         = false;
+          grabbing          = false;
+
+          setControls();
+          setBaseSphere();
+          setShaderMaterial();
+          setMap();
+          resize();
+          listenTo();
+          render();
+
+        }
+
+        const setControls = () => {
+
+          controls                 = new OrbitControls(camera, renderer.domElement);
+          controls.autoRotate      = true;
+          controls.autoRotateSpeed = 1.0;
+          controls.enableDamping   = true;
+          controls.enableRotate    = true;
+          controls.enablePan       = false;
+          controls.enableZoom      = false;
+          controls.minPolarAngle   = (Math.PI / 2) - 0.5;
+          controls.maxPolarAngle   = (Math.PI / 2) + 0.5;
+
+        };
+
+        const setBaseSphere = () => {
+
+          const baseSphere   = new THREE.SphereGeometry(19.5, 35, 35);
+          const baseMaterial = new THREE.MeshStandardMaterial({
+            color:        0x051a10, // Much darker green color for better contrast
+            transparent:  true, 
+            opacity:      0.9,
+            roughness:    0.6,
+            metalness:    0.2
+          });
+          baseMesh = new THREE.Mesh(baseSphere, baseMaterial);
+          scene.add(baseMesh);
+
+        }
+
+        const setShaderMaterial = () => {
+
+          twinkleTime  = 0.02;
+          materials    = [];
+          material     = new THREE.ShaderMaterial({
+            side: THREE.DoubleSide,
+            transparent: true,
+            uniforms: {
+              u_time:         { value: 1.0 },
+              u_maxExtrusion: { value: 1.0 }
+            },
+            vertexShader:   vertex,
+            fragmentShader: fragment,
+          });
+
+        }
+
+        const setMap = () => {
+          console.log("Setting up map...");
+          let   activeLatLon    = {};
+          const dotSphereRadius = 20;
+
+          const readImageData = (imageData) => {
+            console.log("Reading image data...", imageData.length);
+            let dotsCount = 0;
+            for(
+              let i = 0, lon = -180, lat = 90; 
+              i < imageData.length; 
+              i += 4, lon++
+            ) {
+
+              if(!activeLatLon[lat]) activeLatLon[lat] = [];
+
+              const red   = imageData[i];
+              const green = imageData[i + 1];
+              const blue  = imageData[i + 2];
+
+              if(red < 80 && green < 80 && blue < 80) {
+                activeLatLon[lat].push(lon);
+                dotsCount++;
+              }
+
+              if(lon === 180) {
+                lon = -180;
+                lat--;
+              }
+
+            }
+            console.log("Total dots found in image:", dotsCount);
+            console.log("Active latitudes:", Object.keys(activeLatLon).length);
+          }
+
+          const visibilityForCoordinate = (lon, lat) => {
+
+            let visible = false;
+
+            if(!activeLatLon[lat] || !activeLatLon[lat].length) return visible;
+
+            const closest = activeLatLon[lat].reduce((prev, curr) => {
+              return (Math.abs(curr - lon) < Math.abs(prev - lon) ? curr : prev);
+            });
+
+            if(Math.abs(lon - closest) < 0.5) visible = true;
+
+            return visible;
+
+          }
+
+          const calcPosFromLatLonRad = (lon, lat) => {
+          
+            var phi   = (90 - lat)  * (Math.PI / 180);
+            var theta = (lon + 180) * (Math.PI / 180);
+
+            const x = -(dotSphereRadius * Math.sin(phi) * Math.cos(theta));
+            const z = (dotSphereRadius * Math.sin(phi) * Math.sin(theta));
+            const y = (dotSphereRadius * Math.cos(phi));
+          
+            return new THREE.Vector3(x, y, z);
+
+          }
+
+          const createMaterial = (timeValue) => {
+
+            const mat                 = material.clone();
+            mat.uniforms.u_time.value = timeValue * Math.sin(Math.random());
+            materials.push(mat);
+            return mat;
+
+          }
+
+          const setDots = () => {
+            console.log("Setting dots...");
+            const dotDensity  = 2.5;
+            let   vector      = new THREE.Vector3();
+            let dotsCreated = 0;
+
+            // Create city labels container
+            const cityLabelsContainer = document.createElement('div');
+            cityLabelsContainer.id = 'city-labels';
+            document.body.appendChild(cityLabelsContainer);
+
+            // Add larger dots for major cities
+            const majorCities = [
+              { name: "New York", lat: 40.7128, lon: -74.0060 },
+              { name: "Los Angeles", lat: 34.0522, lon: -118.2437 },
+              { name: "London", lat: 51.5074, lon: -0.1278 },
+              { name: "Paris", lat: 48.8566, lon: 2.3522 },
+              { name: "Tokyo", lat: 35.6762, lon: 139.6503 },
+              { name: "Hong Kong", lat: 22.3193, lon: 114.1694 },
+              { name: "Sydney", lat: -33.8688, lon: 151.2093 },
+              { name: "Moscow", lat: 55.7558, lon: 37.6173 },
+              { name: "São Paulo", lat: -23.5505, lon: -46.6333 },
+              { name: "Mexico City", lat: 19.4326, lon: -99.1332 },
+              { name: "Shanghai", lat: 31.2304, lon: 121.4737 },
+              { name: "New Delhi", lat: 28.6139, lon: 77.2090 },
+              { name: "Singapore", lat: 1.3521, lon: 103.8198 },
+              { name: "Buenos Aires", lat: -34.6037, lon: -58.3816 },
+              { name: "Seoul", lat: 37.5665, lon: 126.9780 },
+            ];
+            
+            majorCities.forEach(city => {
+              vector = calcPosFromLatLonRad(city.lon, city.lat);
+              
+              // Create larger dot for the city
+              const cityDotGeometry = new THREE.CircleGeometry(0.35, 6); // Slightly smaller city dots
+              cityDotGeometry.lookAt(vector);
+              cityDotGeometry.translate(vector.x, vector.y, vector.z);
+              
+              const cityMaterial = createMaterial(Math.random() * 10);
+              const cityMesh = new THREE.Mesh(cityDotGeometry, cityMaterial);
+              
+              // Store city data for hover effects
+              cityMesh.userData = { 
+                isCity: true,
+                cityName: city.name,
+                position: vector.clone()
+              };
+              
+              scene.add(cityMesh);
+              
+              // Create glow effect
+              const glowGeometry = new THREE.CircleGeometry(0.6, 6); // Smaller glow
+              glowGeometry.lookAt(vector);
+              glowGeometry.translate(vector.x, vector.y, vector.z);
+              
+              const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0x16A34A,
+                transparent: true,
+                opacity: 0.3 // Less visible glow
+              });
+              
+              const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+              scene.add(glowMesh);
+              
+              // Create city label
+              const cityLabel = document.createElement('div');
+              cityLabel.className = 'city-label';
+              cityLabel.textContent = city.name;
+              cityLabel.id = `city-label-${city.name.replace(/\s+/g, '-').toLowerCase()}`;
+              cityLabelsContainer.appendChild(cityLabel);
+              
+              dotsCreated += 2;
+            });
+
+            // Regular dots for continents
+            for (let lat = 90, i = 0; lat > -90; lat--, i++) {
+
+              const radius = 
+                Math.cos(Math.abs(lat) * (Math.PI / 180)) * dotSphereRadius;
+              const circumference = radius * Math.PI * 2;
+              const dotsForLat = circumference * dotDensity;
+
+              for (let x = 0; x < dotsForLat; x++) {
+
+                const long = -180 + x * 360 / dotsForLat;
+
+                if (!visibilityForCoordinate(long, lat)) continue;
+
+                vector = calcPosFromLatLonRad(long, lat);
+
+                const dotGeometry = new THREE.CircleGeometry(0.15, 5); // Smaller regular dots
+                dotGeometry.lookAt(vector);
+                dotGeometry.translate(vector.x, vector.y, vector.z);
+
+                const m = createMaterial(i);
+                const mesh = new THREE.Mesh(dotGeometry, m);
+
+                scene.add(mesh);
+                dotsCreated++;
+              }
+
+            }
+            console.log("Total dots created:", dotsCreated);
+          }
+          
+          const image = new Image();
+          
+          image.crossOrigin = "Anonymous";
+          
+          image.onload = () => {
+            console.log("Image loaded successfully! Size:", image.width, "x", image.height);
+            image.needsUpdate = true;
+
+            const imageCanvas = document.createElement('canvas');
+            imageCanvas.width = image.width;
+            imageCanvas.height = image.height;
+              
+            const context = imageCanvas.getContext('2d');
+            context.drawImage(image, 0, 0);
+            
+            try {
+              const imageData = context.getImageData(
+                0, 
+                0, 
+                imageCanvas.width, 
+                imageCanvas.height
+              );
+              console.log("Image data retrieved successfully!");
+              readImageData(imageData.data);
+              setDots();
+            } catch (error) {
+              console.error("Error getting image data:", error);
+              createFallbackDots();
+            }
+          };
+          
+          image.onerror = (err) => {
+            console.error("Error loading image:", err);
+            
+            console.log("Using fallback dots pattern");
+            createFallbackDots();
+          };
+
+          const createFallbackDots = () => {
+            console.log("Creating fallback dots pattern");
+            
+            const continents = [
+              { lat: 40, lon: -100, radius: 15 },
+              { lat: -20, lon: -60, radius: 15 },
+              { lat: 50, lon: 10, radius: 10 },
+              { lat: 0, lon: 20, radius: 15 },
+              { lat: 45, lon: 90, radius: 20 },
+              { lat: -25, lon: 135, radius: 10 },
+            ];
+            
+            // Major cities for fallback
+            const majorCities = [
+              { name: "New York", lat: 40.7128, lon: -74.0060 },
+              { name: "Los Angeles", lat: 34.0522, lon: -118.2437 },
+              { name: "London", lat: 51.5074, lon: -0.1278 },
+              { name: "Paris", lat: 48.8566, lon: 2.3522 },
+              { name: "Tokyo", lat: 35.6762, lon: 139.6503 },
+              { name: "Hong Kong", lat: 22.3193, lon: 114.1694 },
+              { name: "Sydney", lat: -33.8688, lon: 151.2093 },
+              { name: "Moscow", lat: 55.7558, lon: 37.6173 },
+              { name: "São Paulo", lat: -23.5505, lon: -46.6333 },
+              { name: "Mexico City", lat: 19.4326, lon: -99.1332 },
+              { name: "Shanghai", lat: 31.2304, lon: 121.4737 },
+              { name: "New Delhi", lat: 28.6139, lon: 77.2090 },
+              { name: "Singapore", lat: 1.3521, lon: 103.8198 },
+              { name: "Buenos Aires", lat: -34.6037, lon: -58.3816 },
+              { name: "Seoul", lat: 37.5665, lon: 126.9780 },
+            ];
+            
+            // Create city labels container if it doesn't exist
+            let cityLabelsContainer = document.getElementById('city-labels');
+            if (!cityLabelsContainer) {
+              cityLabelsContainer = document.createElement('div');
+              cityLabelsContainer.id = 'city-labels';
+              document.body.appendChild(cityLabelsContainer);
+            }
+            
+            let dotsCreated = 0;
+            
+            // Add larger dots for major cities
+            majorCities.forEach(city => {
+              vector = calcPosFromLatLonRad(city.lon, city.lat);
+              
+              // Create larger dot for the city
+              const cityDotGeometry = new THREE.CircleGeometry(0.35, 6); // Slightly smaller city dots
+              cityDotGeometry.lookAt(vector);
+              cityDotGeometry.translate(vector.x, vector.y, vector.z);
+              
+              const cityMaterial = createMaterial(Math.random() * 10);
+              const cityMesh = new THREE.Mesh(cityDotGeometry, cityMaterial);
+              
+              // Store city data for hover effects
+              cityMesh.userData = { 
+                isCity: true,
+                cityName: city.name,
+                position: vector.clone()
+              };
+              
+              scene.add(cityMesh);
+              
+              // Create glow effect
+              const glowGeometry = new THREE.CircleGeometry(0.6, 6); // Smaller glow
+              glowGeometry.lookAt(vector);
+              glowGeometry.translate(vector.x, vector.y, vector.z);
+              
+              const glowMaterial = new THREE.MeshBasicMaterial({
+                color: 0x16A34A,
+                transparent: true,
+                opacity: 0.3 // Less visible glow
+              });
+              
+              const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+              scene.add(glowMesh);
+              
+              // Create city label
+              const cityLabel = document.createElement('div');
+              cityLabel.className = 'city-label';
+              cityLabel.textContent = city.name;
+              cityLabel.id = `city-label-${city.name.replace(/\s+/g, '-').toLowerCase()}`;
+              cityLabelsContainer.appendChild(cityLabel);
+              
+              dotsCreated += 2;
+            });
+            
+            // Regular continent dots
+            continents.forEach(continent => {
+              const { lat, lon, radius } = continent;
+              
+              for (let latOffset = -radius; latOffset <= radius; latOffset += 2) {
+                for (let lonOffset = -radius; lonOffset <= radius; lonOffset += 2) {
+                  if (latOffset*latOffset + lonOffset*lonOffset > radius*radius) continue;
+                  
+                  const dotLat = lat + latOffset;
+                  const dotLon = lon + lonOffset;
+                  
+                  if (dotLat < -90 || dotLat > 90 || dotLon < -180 || dotLon > 180) continue;
+                  
+                  const vector = calcPosFromLatLonRad(dotLon, dotLat);
+                  
+                  const dotGeometry = new THREE.CircleGeometry(0.15, 5); // Smaller regular dots
+                  dotGeometry.lookAt(vector);
+                  dotGeometry.translate(vector.x, vector.y, vector.z);
+                  
+                  const m = createMaterial(Math.random() * 10);
+                  const mesh = new THREE.Mesh(dotGeometry, m);
+                  
+                  scene.add(mesh);
+                  dotsCreated++;
+                }
+              }
+            });
+            
+            console.log("Created", dotsCreated, "fallback dots");
+          };
+
+          console.log("Loading image from online source...");
+          image.src = 'https://raw.githubusercontent.com/jessehhydee/threejs-globe/main/img/world_alpha_mini.jpg';
+        }
+
+        const resize = () => {
+
+          sizes = {
+            width:  container.offsetWidth,
+            height: container.offsetHeight
+          };
+
+          if(window.innerWidth > 700) camera.position.z = 100;
+          else camera.position.z = 140;
+
+          camera.aspect = sizes.width / sizes.height;
+          camera.updateProjectionMatrix();
+
+          renderer.setSize(sizes.width, sizes.height);
+
+        }
+
+        const mousemove = (event) => {
+
+          isIntersecting = false;
+
+          mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+          mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+          raycaster.setFromCamera(mouse, camera);
+          
+          // Hide all city labels first
+          const cityLabels = document.querySelectorAll('.city-label');
+          cityLabels.forEach(label => {
+            label.style.opacity = '0';
+          });
+          
+          // Check for intersections with all objects
+          const intersects = raycaster.intersectObjects(scene.children);
+          
+          if (intersects.length > 0) {
+            // Check if we're hovering over a city dot
+            for (let i = 0; i < intersects.length; i++) {
+              const object = intersects[i].object;
+              
+              if (object.userData && object.userData.isCity) {
+                isIntersecting = true;
+                
+                // Show city label
+                const cityName = object.userData.cityName;
+                const cityLabel = document.getElementById(`city-label-${cityName.replace(/\s+/g, '-').toLowerCase()}`);
+                
+                if (cityLabel) {
+                  // Position the label near the mouse
+                  cityLabel.style.left = `${event.clientX + 10}px`;
+                  cityLabel.style.top = `${event.clientY - 10}px`;
+                  cityLabel.style.opacity = '1';
+                }
+                
+                if (!grabbing) document.body.style.cursor = 'pointer';
+                break;
+              }
+            }
+          }
+          
+          // Also check for intersection with base sphere
+          const baseIntersects = raycaster.intersectObject(baseMesh);
+          if (baseIntersects.length > 0) {
+            isIntersecting = true;
+            if (!grabbing) document.body.style.cursor = 'pointer';
+          }
+          else if (!isIntersecting && !grabbing) {
+            document.body.style.cursor = 'default';
+          }
+
+        }
+
+        const mousedown = () => {
+
+          if(!isIntersecting) return;
+
+          materials.forEach(el => {
+            gsap.to(
+              el.uniforms.u_maxExtrusion, 
+              {
+                value: 1.05
+              }
+            );
+          });
+
+          mouseDown         = true;
+          minMouseDownFlag  = false;
+
+          setTimeout(() => {
+            minMouseDownFlag = true;
+            if(!mouseDown) mouseup();
+          }, 500);
+
+          document.body.style.cursor  = 'grabbing';
+          grabbing                    = true;
+
+        }
+
+        const mouseup = () => {
+
+          mouseDown = false;
+          if(!minMouseDownFlag) return;
+
+          materials.forEach(el => {
+            gsap.to(
+              el.uniforms.u_maxExtrusion, 
+              {
+                value:    1.0, 
+                duration: 0.15
+              }
+            );
+          });
+
+          grabbing = false;
+          if(isIntersecting) document.body.style.cursor = 'pointer';
+          else document.body.style.cursor = 'default';
+
+        }
+
+        const listenTo = () => {
+
+          window.addEventListener('resize',     resize.bind(this));
+          window.addEventListener('mousemove',  mousemove.bind(this));
+          window.addEventListener('mousedown',  mousedown.bind(this));
+          window.addEventListener('mouseup',    mouseup.bind(this));
+
+        }
+
+        const render = () => {
+
+          materials.forEach(el => {
+            el.uniforms.u_time.value += twinkleTime;
+          });
+
+          controls.update();
+          renderer.render(scene, camera);
+          requestAnimationFrame(render.bind(this))
+
+        }
+
+        setScene();
+    </script>
+</body>
+</html> 
