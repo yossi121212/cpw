@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Super Simple Archery Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        #game { width: 100%; height: 100vh; }
+        #ui { 
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            color: #00ff88; 
+            font-family: Arial; 
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #targets {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .target {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            pointer-events: all;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            pointer-events: none;
+        }
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #00ff88;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">Click to start</div>
+    <div id="game">
+        <div id="ui">
+            CPW: <span id="cpw">100</span><br>
+            Arrows: <span id="arrows">10</span><br>
+            Score: <span id="score">0</span>
+        </div>
+        <div id="targets"></div>
+        <div id="crosshair">+</div>
+    </div>
+
+    <script>
+        // Game variables
+        let cpw = 100;
+        let arrows = 10;
+        let score = 0;
+        let isGameStarted = false;
+        
+        // DOM elements
+        const loadingScreen = document.getElementById('loading');
+        const gameScreen = document.getElementById('game');
+        const cpwDisplay = document.getElementById('cpw');
+        const arrowsDisplay = document.getElementById('arrows');
+        const scoreDisplay = document.getElementById('score');
+        const targetsContainer = document.getElementById('targets');
+        
+        // Target data
+        const targets = [
+            { name: 'Bitcoin', isCorrect: true, color: '#F7931A', x: 25, y: 25 },
+            { name: 'Ethereum', isCorrect: true, color: '#627EEA', x: 50, y: 25 },
+            { name: 'Solana', isCorrect: true, color: '#00FFA3', x: 75, y: 25 },
+            { name: 'Facebook', isCorrect: false, color: '#1877F2', x: 25, y: 75 },
+            { name: 'Twitter', isCorrect: false, color: '#1DA1F2', x: 50, y: 75 },
+            { name: 'Google', isCorrect: false, color: '#4285F4', x: 75, y: 75 }
+        ];
+        
+        // Initialize the game
+        function init() {
+            // Create targets
+            targets.forEach(target => {
+                const targetElement = document.createElement('div');
+                targetElement.className = 'target';
+                targetElement.style.backgroundColor = target.color;
+                targetElement.style.left = target.x + '%';
+                targetElement.style.top = target.y + '%';
+                targetElement.dataset.correct = target.isCorrect;
+                targetElement.dataset.name = target.name;
+                
+                targetElement.addEventListener('click', () => {
+                    if (arrows > 0) {
+                        // Shoot arrow
+                        arrows--;
+                        arrowsDisplay.textContent = arrows;
+                        
+                        // Check if target is correct
+                        if (target.isCorrect) {
+                            cpw -= 5;
+                            score += 100;
+                            targetElement.style.boxShadow = '0 0 20px #00ff00';
+                        } else {
+                            cpw += 10;
+                            score -= 50;
+                            targetElement.style.boxShadow = '0 0 20px #ff0000';
+                        }
+                        
+                        // Update UI
+                        cpwDisplay.textContent = cpw;
+                        scoreDisplay.textContent = score;
+                        
+                        // Reset target appearance after a short delay
+                        setTimeout(() => {
+                            targetElement.style.boxShadow = 'none';
+                        }, 200);
+                        
+                        // Check game over conditions
+                        checkGameOver();
+                    }
+                });
+                
+                targetsContainer.appendChild(targetElement);
+            });
+            
+            // Add event listener to start game
+            loadingScreen.addEventListener('click', startGame);
+        }
+        
+        function startGame() {
+            isGameStarted = true;
+            loadingScreen.style.display = 'none';
+        }
+        
+        function checkGameOver() {
+            if (cpw <= 0) {
+                alert('You won! CPW reduced to zero!');
+                resetGame();
+            } else if (cpw >= 200) {
+                alert('Game over! CPW too high!');
+                resetGame();
+            } else if (arrows <= 0) {
+                alert('Out of arrows! Final score: ' + score);
+                resetGame();
+            }
+        }
+        
+        function resetGame() {
+            cpw = 100;
+            arrows = 10;
+            score = 0;
+            
+            cpwDisplay.textContent = cpw;
+            arrowsDisplay.textContent = arrows;
+            scoreDisplay.textContent = score;
+        }
+        
+        // Start the game
+        init();
+    </script>
+</body>
+</html> 

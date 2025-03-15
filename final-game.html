@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CPW Archery Game</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000; 
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+            font-size: 18px;
+            text-shadow: 0 0 5px #00ff88;
+            z-index: 100;
+        }
+        
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        
+        #start-screen h1 {
+            color: #00ff88;
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ff88;
+        }
+        
+        #start-screen p {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 40px;
+        }
+        
+        #start-button {
+            background: #00ff88;
+            color: black;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        #start-button:hover {
+            background: white;
+            transform: scale(1.1);
+        }
+        
+        .target {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 3px black;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .target:hover {
+            transform: translate(-50%, -50%) scale(1.1);
+        }
+        
+        .arrow {
+            position: absolute;
+            width: 20px;
+            height: 4px;
+            background: #8B4513;
+            transform-origin: left center;
+        }
+        
+        .arrow::before {
+            content: '';
+            position: absolute;
+            right: -10px;
+            top: -8px;
+            border-left: 10px solid #8B4513;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+        }
+        
+        .hit-effect {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            transform: translate(-50%, -50%);
+            animation: hit-animation 0.5s forwards;
+        }
+        
+        @keyframes hit-animation {
+            0% { opacity: 1; width: 20px; height: 20px; }
+            100% { opacity: 0; width: 100px; height: 100px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+        
+        <div id="hud">
+            CPW: <span id="cpw-value">100</span><br>
+            Arrows: <span id="arrows-value">10</span><br>
+            Score: <span id="score-value">0</span>
+        </div>
+        
+        <div id="crosshair">+</div>
+        
+        <div id="start-screen">
+            <h1>CPW Archery</h1>
+            <p>Shoot crypto targets to lower CPW. Avoid Web2 targets!</p>
+            <button id="start-button">Start Game</button>
+        </div>
+    </div>
+    
+    <script>
+        // Game canvas and context
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game elements
+        const gameContainer = document.getElementById('game-container');
+        const startScreen = document.getElementById('start-screen');
+        const startButton = document.getElementById('start-button');
+        const cpwValue = document.getElementById('cpw-value');
+        const arrowsValue = document.getElementById('arrows-value');
+        const scoreValue = document.getElementById('score-value');
+        
+        // Game state
+        let gameStarted = false;
+        let cpw = 100;
+        let arrows = 10;
+        let score = 0;
+        let targets = [];
+        let activeArrows = [];
+        
+        // Target definitions
+        const targetTypes = [
+            { name: 'BTC', color: '#F7931A', isCorrect: true },
+            { name: 'ETH', color: '#627EEA', isCorrect: true },
+            { name: 'SOL', color: '#00FFA3', isCorrect: true },
+            { name: 'FB', color: '#1877F2', isCorrect: false },
+            { name: 'TW', color: '#1DA1F2', isCorrect: false },
+            { name: 'GL', color: '#4285F4', isCorrect: false }
+        ];
+        
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        
+        // Initialize game
+        function init() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Start button event
+            startButton.addEventListener('click', startGame);
+            
+            // Create background
+            createBackground();
+            
+            // Render the initial scene
+            render();
+        }
+        
+        // Create a voxel-style background
+        function createBackground() {
+            // This will be drawn in the render function
+        }
+        
+        // Start the game
+        function startGame() {
+            gameStarted = true;
+            startScreen.style.display = 'none';
+            
+            // Create targets
+            createTargets();
+            
+            // Add click event for shooting
+            canvas.addEventListener('click', shootArrow);
+            
+            // Start game loop
+            gameLoop();
+        }
+        
+        // Create targets
+        function createTargets() {
+            targets = [];
+            
+            // Create crypto targets (top row)
+            for (let i = 0; i < 3; i++) {
+                const target = {
+                    x: canvas.width * (0.25 + i * 0.25),
+                    y: canvas.height * 0.3,
+                    type: targetTypes[i],
+                    radius: 30,
+                    hit: false
+                };
+                targets.push(target);
+            }
+            
+            // Create Web2 targets (bottom row)
+            for (let i = 0; i < 3; i++) {
+                const target = {
+                    x: canvas.width * (0.25 + i * 0.25),
+                    y: canvas.height * 0.7,
+                    type: targetTypes[i + 3],
+                    radius: 30,
+                    hit: false
+                };
+                targets.push(target);
+            }
+        }
+        
+        // Shoot an arrow
+        function shootArrow(event) {
+            if (arrows <= 0) return;
+            
+            // Decrease arrows
+            arrows--;
+            arrowsValue.textContent = arrows;
+            
+            // Get mouse position
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            
+            // Create arrow
+            const arrow = {
+                x: canvas.width / 2,
+                y: canvas.height - 50,
+                targetX: mouseX,
+                targetY: mouseY,
+                speed: 15,
+                angle: Math.atan2(mouseY - (canvas.height - 50), mouseX - (canvas.width / 2)),
+                active: true
+            };
+            
+            activeArrows.push(arrow);
+            
+            // Check if we're out of arrows
+            if (arrows <= 0) {
+                setTimeout(checkGameOver, 2000);
+            }
+        }
+        
+        // Update arrow positions
+        function updateArrows() {
+            for (let i = activeArrows.length - 1; i >= 0; i--) {
+                const arrow = activeArrows[i];
+                
+                if (arrow.active) {
+                    // Move arrow
+                    arrow.x += Math.cos(arrow.angle) * arrow.speed;
+                    arrow.y += Math.sin(arrow.angle) * arrow.speed;
+                    
+                    // Check for collisions with targets
+                    for (const target of targets) {
+                        const dx = arrow.x - target.x;
+                        const dy = arrow.y - target.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (distance < target.radius) {
+                            // Hit target
+                            arrow.active = false;
+                            
+                            // Create hit effect
+                            createHitEffect(target.x, target.y, target.type.isCorrect);
+                            
+                            // Update score
+                            if (target.type.isCorrect) {
+                                cpw -= 5;
+                                score += 100;
+                            } else {
+                                cpw += 10;
+                                score -= 50;
+                            }
+                            
+                            // Update HUD
+                            cpwValue.textContent = cpw;
+                            scoreValue.textContent = score;
+                            
+                            // Check for game over
+                            if (cpw <= 0 || cpw >= 200) {
+                                setTimeout(checkGameOver, 1000);
+                            }
+                            
+                            break;
+                        }
+                    }
+                    
+                    // Remove arrows that go off screen
+                    if (arrow.x < 0 || arrow.x > canvas.width || 
+                        arrow.y < 0 || arrow.y > canvas.height) {
+                        arrow.active = false;
+                    }
+                }
+            }
+            
+            // Remove inactive arrows
+            activeArrows = activeArrows.filter(arrow => arrow.active);
+        }
+        
+        // Create hit effect
+        function createHitEffect(x, y, isCorrect) {
+            const effect = document.createElement('div');
+            effect.className = 'hit-effect';
+            effect.style.left = x + 'px';
+            effect.style.top = y + 'px';
+            effect.style.background = isCorrect ? '#00ff00' : '#ff0000';
+            
+            gameContainer.appendChild(effect);
+            
+            // Remove effect after animation
+            setTimeout(() => {
+                gameContainer.removeChild(effect);
+            }, 500);
+        }
+        
+        // Check for game over
+        function checkGameOver() {
+            if (cpw <= 0) {
+                alert('You won! CPW reduced to zero!');
+                resetGame();
+            } else if (cpw >= 200) {
+                alert('Game over! CPW too high!');
+                resetGame();
+            } else if (arrows <= 0) {
+                alert('Out of arrows! Final score: ' + score);
+                resetGame();
+            }
+        }
+        
+        // Reset game
+        function resetGame() {
+            cpw = 100;
+            arrows = 10;
+            score = 0;
+            
+            cpwValue.textContent = cpw;
+            arrowsValue.textContent = arrows;
+            scoreValue.textContent = score;
+            
+            activeArrows = [];
+            
+            // Show start screen
+            startScreen.style.display = 'flex';
+            gameStarted = false;
+        }
+        
+        // Game loop
+        function gameLoop() {
+            if (gameStarted) {
+                updateArrows();
+                render();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        // Render the scene
+        function render() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw background (voxel grid)
+            drawVoxelBackground();
+            
+            // Draw targets
+            for (const target of targets) {
+                // Draw target circle
+                ctx.beginPath();
+                ctx.arc(target.x, target.y, target.radius, 0, Math.PI * 2);
+                ctx.fillStyle = target.type.color;
+                ctx.fill();
+                ctx.strokeStyle = 'white';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Draw target label
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(target.type.name, target.x, target.y);
+            }
+            
+            // Draw arrows
+            for (const arrow of activeArrows) {
+                ctx.save();
+                ctx.translate(arrow.x, arrow.y);
+                ctx.rotate(arrow.angle);
+                
+                // Draw arrow shaft
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(-20, -2, 40, 4);
+                
+                // Draw arrow head
+                ctx.beginPath();
+                ctx.moveTo(20, 0);
+                ctx.lineTo(10, -8);
+                ctx.lineTo(10, 8);
+                ctx.closePath();
+                ctx.fillStyle = '#555555';
+                ctx.fill();
+                
+                ctx.restore();
+            }
+            
+            // If game not started, keep rendering for background effect
+            if (!gameStarted) {
+                requestAnimationFrame(render);
+            }
+        }
+        
+        // Draw voxel-style background
+        function drawVoxelBackground() {
+            const gridSize = 20;
+            const cellSize = Math.max(canvas.width, canvas.height) / gridSize;
+            
+            // Draw grid
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.2)';
+            ctx.lineWidth = 1;
+            
+            // Horizontal lines
+            for (let y = 0; y <= gridSize; y++) {
+                ctx.beginPath();
+                ctx.moveTo(0, y * cellSize);
+                ctx.lineTo(canvas.width, y * cellSize);
+                ctx.stroke();
+            }
+            
+            // Vertical lines
+            for (let x = 0; x <= gridSize; x++) {
+                ctx.beginPath();
+                ctx.moveTo(x * cellSize, 0);
+                ctx.lineTo(x * cellSize, canvas.height);
+                ctx.stroke();
+            }
+            
+            // Draw target wall
+            ctx.fillStyle = 'rgba(51, 51, 102, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        
+        // Initialize the game
+        init();
+    </script>
+</body>
+</html> 

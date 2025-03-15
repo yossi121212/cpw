@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPW Archery - Crypto Target Practice</title>
+    <link rel="stylesheet" href="cpw-archery.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Three.js Libraries -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./js/lib/three/three.module.js",
+          "three/addons/": "./js/lib/three/"
+        }
+      }
+    </script>
+</head>
+<body>
+    <div id="game-container">
+        <div id="loading-screen">
+            <div class="loading-content">
+                <h1>CPW Archery</h1>
+                <p>Loading game assets...</p>
+                <div class="progress-bar">
+                    <div class="progress"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="game-ui">
+            <div id="hud">
+                <div id="cpw-display">
+                    <span>CPW:</span>
+                    <span id="cpw-value">100</span>
+                </div>
+                <div id="arrows-display">
+                    <span>Arrows:</span>
+                    <span id="arrows-count">10</span>
+                </div>
+                <div id="score-display">
+                    <span>Score:</span>
+                    <span id="score-value">0</span>
+                </div>
+                <div id="level-display">
+                    <span>Level:</span>
+                    <span id="level-value">1</span>
+                </div>
+            </div>
+            
+            <div id="crosshair">+</div>
+            
+            <div id="power-ups">
+                <button id="addressable-power" disabled>Activate Addressable Power</button>
+            </div>
+        </div>
+        
+        <div id="game-over" class="hidden">
+            <div class="game-over-content">
+                <h2>Game Over</h2>
+                <p>Your final CPW: <span id="final-cpw">0</span></p>
+                <p>Your score: <span id="final-score">0</span></p>
+                <button id="restart-button">Play Again</button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module" src="js/cpw-archery.js"></script>
+    
+    <!-- Logo generator script -->
+    <script src="js/logo-generator.js"></script>
+</body>
+</html> 

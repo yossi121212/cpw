@@ -1,35 +1,31 @@
-# CyberShield AI
+# CPW Game
 
-A modern landing page for a fictional AI-powered cybersecurity company. The site features a stunning interactive 3D globe visualization built with Three.js.
+A Minecraft-style archery game where players aim to achieve optimal Cost Per Wallet (CPW) by targeting crypto websites.
 
-## Features
+## Game Objective
+- Hit crypto website targets to acquire wallets
+- Maintain a CPW between $4.00-$8.00
+- Avoid non-crypto websites that increase your costs
+- Manage your budget wisely
 
-- Responsive design that works on mobile and desktop
-- Interactive 3D globe with city markers
-- Modern glass-morphism UI elements
-- Mobile-friendly navigation with hamburger menu
-- Smooth animations and transitions
+## How to Play
+1. Start with a budget of $1,000
+2. Each shot costs $50
+3. Hitting a crypto target:
+   - Adds 100 wallets
+   - Costs $400 total
+4. Hitting a non-crypto target:
+   - Adds no wallets
+   - Costs $600 total
+5. Game ends when budget runs out
+
+## Controls
+- WASD / Arrow Keys: Move
+- Mouse: Look around
+- Left Click: Shoot
+- ESC: Pause menu
 
 ## Technologies Used
-
-- HTML5
-- CSS3
-- JavaScript
-- Three.js for 3D visualization
-- GSAP for animations
-
-## Development
-
-To run this project locally:
-
-1. Clone the repository
-2. Open `index.html` in your browser
-
-## Deployment
-
-This project is deployed on Netlify at [cybershield-ai.netlify.app](https://cybershield-ai.netlify.app) (once deployed).
-
-## Credits
-
-- Globe visualization adapted from [jessehhydee/threejs-globe](https://github.com/jessehhydee/threejs-globe)
-- Font: Inter from Google Fonts 
+- Three.js for 3D graphics
+- HTML5 Canvas
+- JavaScript 

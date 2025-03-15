@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Minecraft-Style Archery Game</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+        }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 16px;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            border: 2px solid #00ff88;
+            text-shadow: 0 0 5px #00ff88;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            pointer-events: none;
+        }
+        #loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #00ff88;
+            font-size: 24px;
+            text-shadow: 0 0 10px #00ff88;
+        }
+        .progress-bar {
+            width: 300px;
+            height: 20px;
+            background: #111;
+            border: 2px solid #00ff88;
+            margin-top: 20px;
+            position: relative;
+        }
+        .progress {
+            height: 100%;
+            background: #00ff88;
+            width: 0%;
+            transition: width 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <h1>CPW Archery</h1>
+        <p>Click to start</p>
+        <div class="progress-bar">
+            <div class="progress" id="progress"></div>
+        </div>
+    </div>
+    
+    <div id="info">
+        CPW: <span id="cpw">100</span><br>
+        Arrows: <span id="arrows">10</span><br>
+        Score: <span id="score">0</span>
+    </div>
+    
+    <div id="crosshair">+</div>
+    
+    <script type="module">
+        // Import Three.js directly from CDN
+        import * as THREE from 'https://unpkg.com/three@0.151.0/build/three.module.js';
+        import { PointerLockControls } from 'https://unpkg.com/three@0.151.0/examples/jsm/controls/PointerLockControls.js';
+
+        // Game variables
+        let scene, camera, renderer, controls;
+        let targets = [];
+        let arrows = [];
+        let cpw = 100;
+        let score = 0;
+        let arrowsLeft = 10;
+        let isGameStarted = false;
+        
+        // DOM elements
+        const loadingScreen = document.getElementById('loading');
+        const progressBar = document.getElementById('progress');
+        const cpwDisplay = document.getElementById('cpw');
+        const arrowsDisplay = document.getElementById('arrows');
+        const scoreDisplay = document.getElementById('score');
+        
+        // Initialize the game
+        init();
+        animate();
+        
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222233);
+            scene.fog = new THREE.FogExp2(0x222233, 0.02);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+            camera.position.y = 1.6; // Eye height
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 10, 7);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            // Add neon lights for atmosphere
+            const blueLight = new THREE.PointLight(0x0088ff, 1, 50);
+            blueLight.position.set(-10, 5, 10);
+            scene.add(blueLight);
+            
+            const greenLight = new THREE.PointLight(0x00ff88, 1, 50);
+            greenLight.position.set(10, 5, 10);
+            scene.add(greenLight);
+            
+            // Create controls
+            controls = new PointerLockControls(camera, document.body);
+            
+            // Create ground (Minecraft style)
+            createVoxelGround();
+            
+            // Create target wall
+            createTargetWall();
+            
+            // Create bow
+            createBow();
+            
+            // Add event listeners
+            document.addEventListener('click', onClick);
+            window.addEventListener('resize', onWindowResize);
+            
+            // Show loading screen
+            updateProgress(1);
+        }
+        
+        function createVoxelGround() {
+            // Create a grid of cubes for the ground
+            const cubeSize = 1;
+            const gridSize = 20;
+            
+            for (let x = -gridSize/2; x < gridSize/2; x++) {
+                for (let z = -gridSize/2; z < gridSize/2; z++) {
+                    // Alternate colors for checkerboard pattern
+                    const color = (x + z) % 2 === 0 ? 0x007744 : 0x006633;
+                    
+                    const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+                    const material = new THREE.MeshStandardMaterial({ 
+                        color: color,
+                        roughness: 0.8
+                    });
+                    
+                    const cube = new THREE.Mesh(geometry, material);
+                    cube.position.set(x * cubeSize, -cubeSize/2, z * cubeSize);
+                    cube.receiveShadow = true;
+                    scene.add(cube);
+                }
+            }
+        }
+        
+        function createTargetWall() {
+            // Create a wall of cubes
+            const cubeSize = 1;
+            const wallWidth = 10;
+            const wallHeight = 5;
+            
+            for (let x = -wallWidth/2; x < wallWidth/2; x++) {
+                for (let y = 0; y < wallHeight; y++) {
+                    const geometry = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+                    const material = new THREE.MeshStandardMaterial({ 
+                        color: 0x333366,
+                        roughness: 0.7
+                    });
+                    
+                    const cube = new THREE.Mesh(geometry, material);
+                    cube.position.set(x * cubeSize, y * cubeSize, -15);
+                    cube.castShadow = true;
+                    cube.receiveShadow = true;
+                    scene.add(cube);
+                }
+            }
+            
+            // Create targets
+            createTargets();
+        }
+        
+        function createTargets() {
+            const targetSize = 1;
+            const positions = [
+                { x: -3, y: 3, z: -14, color: 0xF7931A, isCorrect: true },  // Bitcoin
+                { x: 0, y: 3, z: -14, color: 0x627EEA, isCorrect: true },   // Ethereum
+                { x: 3, y: 3, z: -14, color: 0x00FFA3, isCorrect: true },   // Solana
+                { x: -3, y: 1, z: -14, color: 0x1877F2, isCorrect: false }, // Facebook
+                { x: 0, y: 1, z: -14, color: 0x1DA1F2, isCorrect: false },  // Twitter
+                { x: 3, y: 1, z: -14, color: 0x4285F4, isCorrect: false }   // Google
+            ];
+            
+            positions.forEach((pos, index) => {
+                // Create target cube (Minecraft style)
+                const geometry = new THREE.BoxGeometry(targetSize, targetSize, targetSize/4);
+                const material = new THREE.MeshPhongMaterial({ 
+                    color: pos.color,
+                    emissive: pos.color,
+                    emissiveIntensity: 0.3,
+                    shininess: 30
+                });
+                
+                const target = new THREE.Mesh(geometry, material);
+                target.position.set(pos.x, pos.y, pos.z);
+                target.userData = {
+                    isTarget: true,
+                    isCorrect: pos.isCorrect,
+                    index: index
+                };
+                
+                scene.add(target);
+                targets.push(target);
+            });
+        }
+        
+        function createBow() {
+            // Create a simple bow using cubes (Minecraft style)
+            const bowGroup = new THREE.Group();
+            
+            // Bow handle
+            const handleGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.1);
+            const handleMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+            bowGroup.add(handle);
+            
+            // Bow top
+            const topGeometry = new THREE.BoxGeometry(0.1, 0.2, 0.1);
+            const topMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const top = new THREE.Mesh(topGeometry, topMaterial);
+            top.position.y = 0.35;
+            bowGroup.add(top);
+            
+            // Bow bottom
+            const bottomGeometry = new THREE.BoxGeometry(0.1, 0.2, 0.1);
+            const bottomMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const bottom = new THREE.Mesh(bottomGeometry, bottomMaterial);
+            bottom.position.y = -0.35;
+            bowGroup.add(bottom);
+            
+            // Bow string
+            const stringGeometry = new THREE.BoxGeometry(0.02, 0.8, 0.02);
+            const stringMaterial = new THREE.MeshBasicMaterial({ color: 0xCCCCCC });
+            const string = new THREE.Mesh(stringGeometry, stringMaterial);
+            string.position.z = 0.1;
+            bowGroup.add(string);
+            
+            // Position the bow
+            bowGroup.position.set(0.3, -0.3, -0.5);
+            bowGroup.rotation.y = Math.PI / 2;
+            
+            // Add to camera
+            camera.add(bowGroup);
+            scene.add(camera);
+        }
+        
+        function shootArrow() {
+            if (arrowsLeft <= 0) return;
+            
+            // Create arrow (Minecraft style)
+            const arrowGroup = new THREE.Group();
+            
+            // Arrow shaft
+            const shaftGeometry = new THREE.BoxGeometry(0.05, 0.05, 0.5);
+            const shaftMaterial = new THREE.MeshStandardMaterial({ color: 0xA0522D });
+            const shaft = new THREE.Mesh(shaftGeometry, shaftMaterial);
+            arrowGroup.add(shaft);
+            
+            // Arrow head
+            const headGeometry = new THREE.ConeGeometry(0.1, 0.2, 4);
+            const headMaterial = new THREE.MeshStandardMaterial({ color: 0x888888 });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.z = 0.35;
+            head.rotation.x = Math.PI / 2;
+            arrowGroup.add(head);
+            
+            // Position arrow at camera
+            arrowGroup.position.copy(camera.position);
+            
+            // Get direction
+            const direction = new THREE.Vector3(0, 0, -1);
+            direction.applyQuaternion(camera.quaternion);
+            
+            // Add some randomness
+            direction.x += (Math.random() - 0.5) * 0.05;
+            direction.y += (Math.random() - 0.5) * 0.05;
+            
+            // Store arrow data
+            const arrow = {
+                object: arrowGroup,
+                direction: direction,
+                speed: 0.5
+            };
+            
+            scene.add(arrowGroup);
+            arrows.push(arrow);
+            
+            // Decrease arrows
+            arrowsLeft--;
+            updateHUD();
+        }
+        
+        function updateArrows() {
+            // Move arrows and check for collisions
+            for (let i = arrows.length - 1; i >= 0; i--) {
+                const arrow = arrows[i];
+                
+                // Move arrow
+                arrow.object.position.add(arrow.direction.clone().multiplyScalar(arrow.speed));
+                
+                // Rotate arrow to face direction
+                arrow.object.lookAt(arrow.object.position.clone().add(arrow.direction));
+                
+                // Check for collisions with targets
+                const raycaster = new THREE.Raycaster(
+                    arrow.object.position.clone(),
+                    arrow.direction.clone(),
+                    0,
+                    arrow.speed
+                );
+                
+                const intersects = raycaster.intersectObjects(targets);
+                
+                if (intersects.length > 0) {
+                    const target = intersects[0].object;
+                    
+                    // Hit effect
+                    createHitEffect(target.position.clone());
+                    
+                    // Update score
+                    if (target.userData.isCorrect) {
+                        cpw -= 5;
+                        score += 100;
+                        
+                        // Flash target
+                        target.material.emissiveIntensity = 1;
+                        setTimeout(() => {
+                            target.material.emissiveIntensity = 0.3;
+                        }, 200);
+                    } else {
+                        cpw += 10;
+                        score -= 50;
+                        
+                        // Flash target
+                        target.material.emissiveIntensity = 1;
+                        setTimeout(() => {
+                            target.material.emissiveIntensity = 0.3;
+                        }, 200);
+                    }
+                    
+                    updateHUD();
+                    
+                    // Remove arrow
+                    scene.remove(arrow.object);
+                    arrows.splice(i, 1);
+                }
+                
+                // Remove arrows that go too far
+                if (arrow.object.position.distanceTo(camera.position) > 100) {
+                    scene.remove(arrow.object);
+                    arrows.splice(i, 1);
+                }
+            }
+        }
+        
+        function createHitEffect(position) {
+            // Create particles for hit effect
+            const particleCount = 20;
+            const particles = new THREE.Group();
+            
+            for (let i = 0; i < particleCount; i++) {
+                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0xFFFFFF,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                
+                const particle = new THREE.Mesh(geometry, material);
+                particle.position.copy(position);
+                
+                // Random direction
+                particle.userData = {
+                    direction: new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.1,
+                        (Math.random() - 0.5) * 0.1,
+                        (Math.random() - 0.5) * 0.1
+                    ),
+                    life: 1.0
+                };
+                
+                particles.add(particle);
+            }
+            
+            scene.add(particles);
+            
+            // Animate particles
+            function animateParticles() {
+                let allDead = true;
+                
+                particles.children.forEach(particle => {
+                    particle.position.add(particle.userData.direction);
+                    particle.userData.life -= 0.02;
+                    particle.material.opacity = particle.userData.life;
+                    particle.scale.multiplyScalar(0.97);
+                    
+                    if (particle.userData.life > 0) {
+                        allDead = false;
+                    }
+                });
+                
+                if (allDead) {
+                    scene.remove(particles);
+                } else {
+                    requestAnimationFrame(animateParticles);
+                }
+            }
+            
+            animateParticles();
+        }
+        
+        function updateHUD() {
+            cpwDisplay.textContent = cpw.toFixed(2);
+            arrowsDisplay.textContent = arrowsLeft;
+            scoreDisplay.textContent = score;
+            
+            // Check for game over
+            if (cpw <= 0) {
+                alert("You won! CPW reduced to zero!");
+                resetGame();
+            } else if (cpw >= 200) {
+                alert("Game over! CPW too high!");
+                resetGame();
+            } else if (arrowsLeft <= 0) {
+                alert("Out of arrows! Final score: " + score);
+                resetGame();
+            }
+        }
+        
+        function resetGame() {
+            cpw = 100;
+            score = 0;
+            arrowsLeft = 10;
+            updateHUD();
+            
+            // Remove all arrows
+            arrows.forEach(arrow => {
+                scene.remove(arrow.object);
+            });
+            arrows = [];
+        }
+        
+        function onClick() {
+            if (!isGameStarted) {
+                // Start game
+                isGameStarted = true;
+                loadingScreen.style.display = 'none';
+                controls.lock();
+            } else if (controls.isLocked) {
+                // Shoot arrow
+                shootArrow();
+            } else {
+                // Lock controls
+                controls.lock();
+            }
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function updateProgress(progress) {
+            progressBar.style.width = `${progress * 100}%`;
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update arrows
+            updateArrows();
+            
+            // Render scene
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html> 

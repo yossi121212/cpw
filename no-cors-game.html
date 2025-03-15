@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPW Archery Game (No CORS)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            color: #fff;
+        }
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+        }
+        #loadingScreen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        #startButton {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: block;
+        }
+        #gameInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin-left: -10px;
+            margin-top: -10px;
+            color: white;
+            font-size: 20px;
+            z-index: 5;
+            pointer-events: none;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingScreen">
+        <h1>CPW Archery</h1>
+        <p>Shoot crypto targets to lower CPW. Avoid Web2 targets!</p>
+        <div id="loadingBar" style="width: 300px; height: 20px; background-color: #333; border-radius: 10px; margin: 20px 0;">
+            <div id="loadingProgress" style="width: 100%; height: 100%; background-color: #4CAF50; border-radius: 10px;"></div>
+        </div>
+        <p id="loadingText">Ready to play!</p>
+        <button id="startButton">Click to Start</button>
+    </div>
+    
+    <div id="gameInfo">
+        <div>CPW: <span id="cpwValue">100</span></div>
+        <div>Score: <span id="scoreValue">0</span></div>
+        <div>Arrows: <span id="arrowsValue">10</span></div>
+    </div>
+    
+    <div id="crosshair">+</div>
+    
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- Three.js מוטמע ישירות -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script>
+        // משתנים גלובליים
+        let scene, camera, renderer, controls;
+        let targets = [];
+        let arrows = [];
+        let cpw = 100;
+        let score = 0;
+        let arrowsLeft = 10;
+        let isGameActive = false;
+        
+        // הגדרת הלוגואים של המטרות
+        const TARGET_LOGOS = [
+            { name: 'Bitcoin', correct: true, color: 0xF7931A },
+            { name: 'Ethereum', correct: true, color: 0x627EEA },
+            { name: 'Solana', correct: true, color: 0x00FFA3 },
+            { name: 'Facebook', correct: false, color: 0x1877F2 },
+            { name: 'Twitter', correct: false, color: 0x1DA1F2 },
+            { name: 'Google', correct: false, color: 0x4285F4 }
+        ];
+
+        // יצירת בקרי מצלמה פשוטים (במקום PointerLockControls)
+        class SimpleControls {
+            constructor(camera, domElement) {
+                this.camera = camera;
+                this.domElement = domElement;
+                this.isLocked = false;
+                this.moveForward = false;
+                this.moveBackward = false;
+                this.moveLeft = false;
+                this.moveRight = false;
+                this.velocity = new THREE.Vector3();
+                this.direction = new THREE.Vector3();
+                this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
+                this.PI_2 = Math.PI / 2;
+                this.vec = new THREE.Vector3();
+                
+                this.onMouseMove = this.onMouseMove.bind(this);
+                this.onKeyDown = this.onKeyDown.bind(this);
+                this.onKeyUp = this.onKeyUp.bind(this);
+                
+                this.domElement.addEventListener('click', () => this.lock());
+            }
+            
+            lock() {
+                this.domElement.requestPointerLock = this.domElement.requestPointerLock || 
+                                                    this.domElement.mozRequestPointerLock ||
+                                                    this.domElement.webkitRequestPointerLock;
+                this.domElement.requestPointerLock();
+                
+                document.addEventListener('pointerlockchange', this.onLockChange.bind(this), false);
+                document.addEventListener('mozpointerlockchange', this.onLockChange.bind(this), false);
+                document.addEventListener('webkitpointerlockchange', this.onLockChange.bind(this), false);
+            }
+            
+            unlock() {
+                document.exitPointerLock = document.exitPointerLock || 
+                                          document.mozExitPointerLock ||
+                                          document.webkitExitPointerLock;
+                document.exitPointerLock();
+            }
+            
+            onLockChange() {
+                if (document.pointerLockElement === this.domElement || 
+                    document.mozPointerLockElement === this.domElement ||
+                    document.webkitPointerLockElement === this.domElement) {
+                    this.isLocked = true;
+                    document.addEventListener('mousemove', this.onMouseMove, false);
+                    document.addEventListener('keydown', this.onKeyDown, false);
+                    document.addEventListener('keyup', this.onKeyUp, false);
+                } else {
+                    this.isLocked = false;
+                    document.removeEventListener('mousemove', this.onMouseMove, false);
+                    document.removeEventListener('keydown', this.onKeyDown, false);
+                    document.removeEventListener('keyup', this.onKeyUp, false);
+                }
+            }
+            
+            onMouseMove(event) {
+                if (!this.isLocked) return;
+                
+                const movementX = event.movementX || event.mozMovementX || event.webkitMovementX || 0;
+                const movementY = event.movementY || event.mozMovementY || event.webkitMovementY || 0;
+                
+                this.euler.setFromQuaternion(this.camera.quaternion);
+                this.euler.y -= movementX * 0.002;
+                this.euler.x -= movementY * 0.002;
+                this.euler.x = Math.max(-this.PI_2, Math.min(this.PI_2, this.euler.x));
+                
+                this.camera.quaternion.setFromEuler(this.euler);
+            }
+            
+            onKeyDown(event) {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW':
+                        this.moveForward = true;
+                        break;
+                    case 'ArrowLeft':
+                    case 'KeyA':
+                        this.moveLeft = true;
+                        break;
+                    case 'ArrowDown':
+                    case 'KeyS':
+                        this.moveBackward = true;
+                        break;
+                    case 'ArrowRight':
+                    case 'KeyD':
+                        this.moveRight = true;
+                        break;
+                }
+            }
+            
+            onKeyUp(event) {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW':
+                        this.moveForward = false;
+                        break;
+                    case 'ArrowLeft':
+                    case 'KeyA':
+                        this.moveLeft = false;
+                        break;
+                    case 'ArrowDown':
+                    case 'KeyS':
+                        this.moveBackward = false;
+                        break;
+                    case 'ArrowRight':
+                    case 'KeyD':
+                        this.moveRight = false;
+                        break;
+                }
+            }
+            
+            update(delta) {
+                if (!this.isLocked) return;
+                
+                this.velocity.x -= this.velocity.x * 10.0 * delta;
+                this.velocity.z -= this.velocity.z * 10.0 * delta;
+                
+                this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
+                this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
+                this.direction.normalize();
+                
+                if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * 400.0 * delta;
+                if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * 400.0 * delta;
+                
+                this.camera.getWorldDirection(this.vec);
+                this.vec.y = 0;
+                this.vec.normalize();
+                
+                const moveX = this.velocity.x * delta;
+                const moveZ = this.velocity.z * delta;
+                
+                if (this.moveForward || this.moveBackward) {
+                    this.camera.position.addScaledVector(this.vec, -moveZ);
+                }
+                
+                if (this.moveLeft || this.moveRight) {
+                    this.vec.cross(this.camera.up);
+                    this.camera.position.addScaledVector(this.vec, -moveX);
+                }
+            }
+        }
+
+        // אתחול המשחק
+        function init() {
+            // יצירת סצנה
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // צבע שמיים
+            
+            // יצירת מצלמה
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 1.6, 0); // גובה עיניים
+            
+            // יצירת רנדרר
+            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // הוספת תאורה
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+            
+            // יצירת בקרי מצלמה פשוטים
+            controls = new SimpleControls(camera, document.body);
+            
+            // יצירת רצפה
+            createFloor();
+            
+            // יצירת מטרות
+            createTargets();
+            
+            // הוספת אירועים
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('click', onMouseClick);
+            
+            // התחלת לולאת האנימציה
+            animate();
+            
+            // הוספת אירוע לכפתור התחלה
+            document.getElementById('startButton').addEventListener('click', startGame);
+        }
+        
+        // יצירת רצפה
+        function createFloor() {
+            const floorGeometry = new THREE.PlaneGeometry(100, 100);
+            const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.y = -0.5;
+            scene.add(floor);
+        }
+        
+        // יצירת מטרות
+        function createTargets() {
+            const targetSize = 1;
+            const distance = 15;
+            const height = 1.5;
+            
+            // יצירת מטרות נכונות (קריפטו) בשורה העליונה
+            for (let i = 0; i < 3; i++) {
+                const logo = TARGET_LOGOS[i];
+                const x = (i - 1) * 3;
+                createTarget(logo, x, height, -distance);
+            }
+            
+            // יצירת מטרות שגויות (Web2) בשורה התחתונה
+            for (let i = 3; i < 6; i++) {
+                const logo = TARGET_LOGOS[i];
+                const x = (i - 4) * 3;
+                createTarget(logo, x, height, -distance - 5);
+            }
+        }
+        
+        // יצירת מטרה בודדת
+        function createTarget(logo, x, y, z) {
+            // יצירת קוביה צבעונית
+            const geometry = new THREE.BoxGeometry(1, 1, 0.1);
+            const material = new THREE.MeshStandardMaterial({ color: logo.color });
+            const target = new THREE.Mesh(geometry, material);
+            target.position.set(x, y, z);
+            target.userData = { logo: logo };
+            scene.add(target);
+            targets.push(target);
+            
+            // יצירת טקסט על המטרה
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const context = canvas.getContext('2d');
+            context.fillStyle = '#ffffff';
+            context.font = 'Bold 40px Arial';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(logo.name.substring(0, 3), 64, 64);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const labelMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+            const labelGeometry = new THREE.PlaneGeometry(0.8, 0.8);
+            const label = new THREE.Mesh(labelGeometry, labelMaterial);
+            label.position.z = 0.06;
+            target.add(label);
+        }
+        
+        // התחלת המשחק
+        function startGame() {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('crosshair').style.display = 'block';
+            controls.lock();
+            isGameActive = true;
+        }
+        
+        // טיפול בלחיצת עכבר (ירי)
+        function onMouseClick(event) {
+            if (!controls.isLocked || arrowsLeft <= 0) return;
+            
+            // יצירת חץ
+            const arrowGeometry = new THREE.CylinderGeometry(0.01, 0.01, 0.5);
+            const arrowMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+            
+            // מיקום החץ במצלמה
+            arrow.position.copy(camera.position);
+            
+            // כיוון החץ לפי כיוון המצלמה
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+            
+            // הוספת מהירות לחץ
+            arrow.userData = { velocity: direction.multiplyScalar(0.5) };
+            
+            scene.add(arrow);
+            arrows.push(arrow);
+            arrowsLeft--;
+            
+            // עדכון מספר החיצים שנותרו
+            document.getElementById('arrowsValue').textContent = arrowsLeft;
+        }
+        
+        // עדכון מיקום החיצים
+        function updateArrows() {
+            for (let i = arrows.length - 1; i >= 0; i--) {
+                const arrow = arrows[i];
+                arrow.position.add(arrow.userData.velocity);
+                
+                // בדיקת פגיעה במטרה
+                for (let j = 0; j < targets.length; j++) {
+                    const target = targets[j];
+                    const distance = arrow.position.distanceTo(target.position);
+                    
+                    if (distance < 0.7) {
+                        // פגיעה במטרה
+                        handleTargetHit(target);
+                        scene.remove(arrow);
+                        arrows.splice(i, 1);
+                        break;
+                    }
+                }
+                
+                // הסרת חיצים שהתרחקו מדי
+                if (arrow.position.distanceTo(camera.position) > 50) {
+                    scene.remove(arrow);
+                    arrows.splice(i, 1);
+                }
+            }
+        }
+        
+        // טיפול בפגיעה במטרה
+        function handleTargetHit(target) {
+            const logo = target.userData.logo;
+            
+            if (logo.correct) {
+                // פגיעה במטרת קריפטו - הורדת CPW
+                cpw -= 10;
+                score += 100;
+            } else {
+                // פגיעה במטרת Web2 - העלאת CPW
+                cpw += 5;
+                score -= 50;
+            }
+            
+            // הגבלת CPW ל-0 מינימום
+            cpw = Math.max(0, cpw);
+            
+            // עדכון ערכים בממשק
+            document.getElementById('cpwValue').textContent = cpw;
+            document.getElementById('scoreValue').textContent = score;
+            
+            // בדיקת סיום המשחק
+            checkGameEnd();
+        }
+        
+        // בדיקת סיום המשחק
+        function checkGameEnd() {
+            if (cpw <= 0 || arrowsLeft <= 0) {
+                setTimeout(() => {
+                    let message = '';
+                    if (cpw <= 0) {
+                        message = 'You won! You reduced CPW to 0.';
+                    } else {
+                        message = 'Game over! You ran out of arrows.';
+                    }
+                    message += `\nFinal score: ${score}`;
+                    alert(message);
+                    resetGame();
+                }, 500);
+            }
+        }
+        
+        // איפוס המשחק
+        function resetGame() {
+            cpw = 100;
+            score = 0;
+            arrowsLeft = 10;
+            
+            // הסרת כל החיצים
+            for (const arrow of arrows) {
+                scene.remove(arrow);
+            }
+            arrows = [];
+            
+            // עדכון ערכים בממשק
+            document.getElementById('cpwValue').textContent = cpw;
+            document.getElementById('scoreValue').textContent = score;
+            document.getElementById('arrowsValue').textContent = arrowsLeft;
+            
+            // הצגת מסך טעינה מחדש
+            document.getElementById('loadingScreen').style.display = 'flex';
+            controls.unlock();
+        }
+        
+        // התאמת גודל החלון
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // לולאת אנימציה
+        let lastTime = 0;
+        function animate(time) {
+            requestAnimationFrame(animate);
+            
+            const delta = (time - lastTime) / 1000;
+            lastTime = time;
+            
+            if (controls.isLocked) {
+                controls.update(delta);
+                updateArrows();
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // התחלת המשחק
+        init();
+    </script>
+</body>
+</html> 
