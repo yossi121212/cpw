@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minecraft CPW Archery</title>
+    <title>Addressable CPW Archery</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Minecraft', Arial, sans-serif; background-color: #000; color: #fff; }
         #gameCanvas { width: 100%; height: 100%; position: absolute; }
@@ -16,16 +16,16 @@
             font-family: 'Minecraft', monospace;
         }
         #pauseMenu {
-            position: absolute;
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
             background-color: rgba(0, 0, 0, 0.7);
             display: none;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
-            z-index: 200;
-            font-family: 'Minecraft', monospace;
+            z-index: 1000;
         }
         #startButton {
             padding: 10px 20px;
@@ -115,7 +115,8 @@
         #gameOverPopup p {
             color: white;
             font-size: 20px;
-            margin: 10px 0;
+            margin: 15px 0;
+            display: block;
         }
         
         #gameOverPopup .highlight {
@@ -129,8 +130,9 @@
         }
         
         #gameOverPopup .learn-link {
-            display: inline-block;
+            display: block;
             margin-top: 20px;
+            margin-bottom: 10px;
             color: #3498db;
             text-decoration: underline;
             cursor: pointer;
@@ -157,36 +159,111 @@
             background-color: #45a049;
             transform: scale(1.05);
         }
+
+        .pause-menu {
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 30px;
+            text-align: center;
+            min-width: 400px;
+            border-radius: 0;
+            border: none;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pause-menu h2 {
+            color: white;
+            font-size: 32px;
+            margin-bottom: 30px;
+            text-transform: uppercase;
+            text-shadow: 2px 2px #000;
+        }
+
+        .pause-menu button {
+            width: 300px;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 20px;
+            background-color: #6b6b6b;
+            color: white;
+            border: 2px solid #373737;
+            border-bottom: 4px solid #373737;
+            cursor: pointer;
+            font-family: 'Minecraft', monospace;
+            text-transform: uppercase;
+            transition: all 0.1s ease;
+            text-shadow: 2px 2px #373737;
+            display: block;
+        }
+
+        .pause-menu button:hover {
+            background-color: #4CAF50;
+            border: 2px solid #3a8a3e;
+            border-bottom: 4px solid #3a8a3e;
+            transform: translateY(-2px);
+        }
+
+        .pause-menu button:active, .pause-menu button.active {
+            background-color: #4CAF50;
+            border: 2px solid #3a8a3e;
+            border-bottom: 4px solid #3a8a3e;
+            transform: translateY(0);
+        }
+
+        .pause-menu button:first-of-type {
+            background-color: #6b6b6b;
+            border: 2px solid #373737;
+            border-bottom: 4px solid #373737;
+        }
+
+        .pause-menu button:first-of-type:hover {
+            background-color: #4CAF50;
+            border: 2px solid #3a8a3e;
+            border-bottom: 4px solid #3a8a3e;
+        }
     </style>
 </head>
 <body>
     <div id="loadingScreen">
-        <h1 style="font-size: 48px; margin-bottom: 20px;">CPW Lower Game</h1>
-        <p style="font-size: 24px;">Shoot crypto targets to lower CPW (Cost Per Wallet)</p>
-        <p style="font-size: 20px;">Target: Keep CPW between $4.00-$8.00 when budget runs out!</p>
-        <p style="font-size: 18px;">💰 Starting Budget: $1,000</p>
-        <p style="font-size: 18px;">🎯 Each shot costs $50</p>
-        <p style="font-size: 18px;">✅ Hit crypto sites to acquire wallets</p>
-        <p style="font-size: 18px;">❌ Avoid non-crypto sites - they waste your budget!</p>
-        <div style="width: 300px; height: 20px; background-color: #333; border: 2px solid #45a049; margin: 20px 0;">
-            <div id="loadingProgress" style="width: 100%; height: 100%; background-color: #4CAF50;"></div>
+        <h1 style="font-size: 48px; margin-bottom: 30px; text-shadow: 3px 3px #000;">Addressable CPW Archery</h1>
+        <div style="background-color: rgba(0, 0, 0, 0.6); padding: 30px; border-radius: 10px; border: 2px solid #45a049; max-width: 600px; margin-bottom: 30px;">
+            <p style="font-size: 24px; margin-bottom: 20px;">Shoot crypto targets to lower CPW (Cost Per Wallet)</p>
+            <p style="font-size: 20px; margin-bottom: 25px;">Target: Keep CPW at $4.00 - $8.00 when budget runs out!</p>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; text-align: left; margin-bottom: 20px;">
+                <p style="font-size: 18px;">💰 Starting Budget: $1,000</p>
+                <p style="font-size: 18px;">🎯 Each shot: $10-$30</p>
+                <p style="font-size: 18px;">✅ Hit crypto sites (green): +25 wallets</p>
+                <p style="font-size: 18px;">❌ Non-crypto sites (red): No wallets!</p>
+            </div>
+            
+            <p style="font-size: 18px; margin-top: 15px; padding-top: 15px; border-top: 1px solid #45a049;">📊 CPW = Total Spent / Total Wallets</p>
         </div>
-        <button id="startButton" class="minecraft-btn">Start Campaign</button>
+        
+        <button id="startButton" class="minecraft-btn" style="font-size: 28px; padding: 15px 30px; margin-bottom: 20px;">START CAMPAIGN</button>
+        
+        <p style="margin-top: 15px; font-size: 16px;">
+            <a href="https://www.addressable.io/blog/introducing-cost-per-wallet-cpw" target="_blank" style="color: #4CAF50; text-decoration: underline;">
+                Learn how to reach lower CPW with Addressable
+            </a>
+        </p>
     </div>
     
     <div id="gameInfo">
         <div>CPW (Cost Per Wallet): <span id="cpwValue">None</span></div>
         <div>Wallets Acquired: <span id="scoreValue">0</span></div>
-        <div>Budget: $<span id="budgetValue">1000.00</span></div>
+        <div>Budget: $<span id="budgetValue">1,000.00</span></div>
+        <div id="budgetWarning" style="color: #ff9900; font-weight: bold; display: none;">⚠ Warning: Budget Low!</div>
+        <div id="cpwWarning" style="color: #ff4444; font-weight: bold; display: none;">⚠ CPW TOO HIGH!</div>
     </div>
     
     <div id="crosshair">+</div>
     
-    <div id="pauseMenu">
-        <h1 style="font-size: 48px; color: white; margin-bottom: 40px;">Game Paused</h1>
-        <button class="menu-button" onclick="resumeGame()">Resume</button>
-        <button class="menu-button" onclick="restartGame()">Restart</button>
-        <button class="menu-button" onclick="exitGame()">Exit</button>
+    <div id="pauseMenu" class="pause-menu">
+        <h2>Game Paused</h2>
+        <button onclick="resumeGame()">Resume Game</button>
+        <button onclick="restartGame()">Restart Game</button>
+        <button onclick="exitGame()">Exit Game</button>
     </div>
     
     <div id="gameOverPopup">
@@ -206,10 +283,12 @@
         let cpw = 0;
         let totalSpent = 0;  // סך כל התקציב שנשרף
         let wallets = 0;     // מספר הארנקים שנוספו
-        let budget = 1000.00;
+        let budget = 1000.00; // תקציב התחלתי של 1000$
+        let initialBudget = 1000.00; // תקציב התחלתי קבוע לחישובים
         let isGameActive = false;
         let isPaused = false;
-        const SHOT_COST = 50;  // עלות ירייה של 50$
+        let gameStartTime = 0; // Track when the game started
+        let currentShotCost = 0; // עלות הירייה הנוכחית
         let firstHit = true;  // משתנה חדש לבדיקה אם זו הפגיעה הראשונה
         
         // הגדרת המטרות - אתרי קריפטו מול אתרי חדשות
@@ -274,6 +353,23 @@
                 this.PI_2 = Math.PI / 2;
                 this.vec = new THREE.Vector3();
                 
+                // New movement variables
+                this.isSneaking = false;
+                this.isSprinting = false;
+                this.isJumping = false;
+                this.isFlying = false;
+                this.jumpVelocity = 0;
+                this.gravity = 9.8;
+                this.playerHeight = 1.8;
+                this.spaceKeyPressTime = 0;
+                this.spaceKeyPressCount = 0;
+                this.spaceKeyDoubleTapThreshold = 300; // ms
+                this.moveSpeed = 4.0; // Base movement speed
+                this.flySpeed = 8.0;  // Flying speed
+                this.sprintSpeed = 6.0; // Sprint speed
+                this.sneakSpeed = 1.5; // Sneak speed
+                this.jumpStrength = 5.0; // Jump initial velocity
+                
                 this.onMouseMove = this.onMouseMove.bind(this);
                 this.onKeyDown = this.onKeyDown.bind(this);
                 this.onKeyUp = this.onKeyUp.bind(this);
@@ -312,6 +408,15 @@
                     document.removeEventListener('mousemove', this.onMouseMove, false);
                     document.removeEventListener('keydown', this.onKeyDown, false);
                     document.removeEventListener('keyup', this.onKeyUp, false);
+                    
+                    // אם המשחק פעיל ולא במצב פאוז, ואנחנו לא במסך הטעינה,
+                    // אז כנראה שהמשתמש לחץ על ESC או יצא מהמשחק בדרך אחרת
+                    // במקרה כזה, נפעיל את הפאוז רק אם הוא לא כבר במצב פאוז
+                    if (isGameActive && !isPaused && 
+                        document.getElementById('loadingScreen').style.display === 'none' &&
+                        document.getElementById('gameOverPopup').style.display === 'none') {
+                        pauseGame();
+                    }
                 }
             }
             
@@ -347,6 +452,36 @@
                     case 'KeyD':
                         this.moveRight = true;
                         break;
+                    case 'Space':
+                        // Handle jumping and flying
+                        const now = Date.now();
+                        if (now - this.spaceKeyPressTime < this.spaceKeyDoubleTapThreshold) {
+                            this.spaceKeyPressCount++;
+                            if (this.spaceKeyPressCount >= 2) {
+                                // Double tap - toggle fly mode
+                                this.isFlying = !this.isFlying;
+                                console.log("Fly mode:", this.isFlying ? "ON" : "OFF");
+                                this.spaceKeyPressCount = 0;
+                            }
+                        } else {
+                            this.spaceKeyPressCount = 1;
+                        }
+                        this.spaceKeyPressTime = now;
+                        
+                        // If not flying, initiate a jump
+                        if (!this.isFlying && !this.isJumping) {
+                            this.isJumping = true;
+                            this.jumpVelocity = this.jumpStrength;
+                        }
+                        break;
+                    case 'ShiftLeft':
+                        this.isSneaking = true;
+                        this.isSprinting = false; // Can't sprint and sneak at the same time
+                        break;
+                    case 'ControlLeft':
+                        this.isSprinting = true;
+                        this.isSneaking = false; // Can't sprint and sneak at the same time
+                        break;
                 }
             }
             
@@ -368,22 +503,78 @@
                     case 'KeyD':
                         this.moveRight = false;
                         break;
+                    case 'ShiftLeft':
+                        this.isSneaking = false;
+                        break;
+                    case 'ControlLeft':
+                        this.isSprinting = false;
+                        break;
                 }
             }
             
             update(delta) {
                 if (!this.isLocked) return;
                 
+                // Apply friction to horizontal movement
                 this.velocity.x -= this.velocity.x * 10.0 * delta;
                 this.velocity.z -= this.velocity.z * 10.0 * delta;
                 
+                // Handle vertical movement (jumping/flying)
+                if (this.isFlying) {
+                    // In fly mode, no gravity
+                    this.velocity.y -= this.velocity.y * 10.0 * delta;
+                    
+                    // Space key moves up in fly mode
+                    if (this.isJumping) {
+                        this.velocity.y += 10.0 * delta;
+                    }
+                    
+                    // Shift key moves down in fly mode
+                    if (this.isSneaking) {
+                        this.velocity.y -= 10.0 * delta;
+                    }
+                } else {
+                    // Apply gravity when not flying
+                    if (this.isJumping) {
+                        this.jumpVelocity -= this.gravity * delta;
+                        this.camera.position.y += this.jumpVelocity * delta;
+                        
+                        // Check if we've landed
+                        if (this.camera.position.y <= this.playerHeight) {
+                            this.camera.position.y = this.playerHeight;
+                            this.isJumping = false;
+                            this.jumpVelocity = 0;
+                        }
+                    } else {
+                        // Ensure player is at correct height when not jumping
+                        this.camera.position.y = this.playerHeight;
+                    }
+                }
+                
+                // Calculate movement direction
                 this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
                 this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
                 this.direction.normalize();
                 
-                if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * 400.0 * delta;
-                if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * 400.0 * delta;
+                // Determine current speed based on movement state
+                let currentSpeed = this.moveSpeed;
+                if (this.isFlying) {
+                    currentSpeed = this.flySpeed;
+                } else if (this.isSprinting) {
+                    currentSpeed = this.sprintSpeed;
+                } else if (this.isSneaking) {
+                    currentSpeed = this.sneakSpeed;
+                }
                 
+                // Apply movement forces
+                if (this.moveForward || this.moveBackward) {
+                    this.velocity.z -= this.direction.z * currentSpeed * 100.0 * delta;
+                }
+                if (this.moveLeft || this.moveRight) {
+                    this.velocity.x -= this.direction.x * currentSpeed * 100.0 * delta;
+                }
+                
+                // Get camera direction for movement
                 this.camera.getWorldDirection(this.vec);
                 this.vec.y = 0;
                 this.vec.normalize();
@@ -391,10 +582,12 @@
                 const moveX = this.velocity.x * delta;
                 const moveZ = this.velocity.z * delta;
                 
+                // Move forward/backward
                 if (this.moveForward || this.moveBackward) {
                     this.camera.position.addScaledVector(this.vec, -moveZ);
                 }
                 
+                // Strafe left/right
                 if (this.moveLeft || this.moveRight) {
                     this.vec.cross(this.camera.up);
                     this.camera.position.addScaledVector(this.vec, -moveX);
@@ -407,7 +600,7 @@
             scene.background = new THREE.Color(0x87CEEB);  // שמיים כחולים בהירים
             
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 3, 8);  // שינוי מיקום המצלמה ההתחלתי
+            camera.position.set(0, 1.8, 8);  // Set initial camera height to player height
             
             renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -630,24 +823,61 @@
         }
         
         function startGame() {
+            // איפוס המשתנים בתחילת המשחק
+            cpw = 0;
+            budget = initialBudget; // תקציב התחלתי של 1000$
+            totalSpent = 0;  // סך כל ההוצאות מתאפס
+            wallets = 0;     // מספר הארנקים שנוספו
+            
+            console.log("Game started with initial values:", {
+                cpw,
+                totalSpent,
+                wallets,
+                budget,
+                initialBudget
+            });
+            
             document.getElementById('loadingScreen').style.display = 'none';
             document.getElementById('crosshair').style.display = 'block';
+            document.getElementById('cpwValue').textContent = "None";
+            document.getElementById('scoreValue').textContent = "0";
+            document.getElementById('budgetValue').textContent = budget.toFixed(2);
+            document.getElementById('budgetWarning').style.display = 'none';
+            document.getElementById('cpwWarning').style.display = 'none';
+            
             controls.lock();
             isGameActive = true;
+            gameStartTime = Date.now(); // Record the time when game started
         }
         
         function onMouseClick(event) {
-            if (!controls.isLocked || budget <= 0) return;
+            if (!controls.isLocked || !isGameActive) return;
+            
+            // קביעת עלות רנדומלית לירייה בין 10 ל-30$
+            currentShotCost = Math.floor(Math.random() * 21) + 10; // 10-30
             
             // בדיקה שיש מספיק תקציב לירייה
-            if (budget < SHOT_COST) return;
+            if (budget < currentShotCost) {
+                console.log("Not enough budget for a shot. Current budget:", budget, "Shot cost:", currentShotCost);
+                // אם אין מספיק תקציב, מציגים הודעת סיום
+                showBudgetDepletedMessage();
+                endGame();
+                return;
+            }
             
             // חיוב התקציב בעלות הירייה
-            budget -= SHOT_COST;
+            budget -= currentShotCost;
+            
+            // חישוב סך ההוצאות לפי הנוסחה: תקציב התחלתי פחות תקציב נוכחי
+            totalSpent = initialBudget - budget;
+            
+            console.log("Shot fired! Budget reduced by", currentShotCost, "New budget:", budget, "Total spent:", totalSpent);
             
             // עדכון התצוגה
             document.getElementById('budgetValue').textContent = budget.toFixed(2);
-            document.getElementById('cpwValue').textContent = wallets === 0 ? "None" : `$${(totalSpent / wallets).toFixed(2)}`;
+            
+            // עדכון ה-CPW והתראה אם צריך
+            updateCPWDisplay();
             
             const arrowGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.5);
             const arrowMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
@@ -663,6 +893,13 @@
             
             scene.add(arrow);
             arrows.push(arrow);
+            
+            // בדיקה אם נגמר התקציב לאחר הירייה
+            if (budget < 10 || budget === 0) { // 10 הוא המינימום האפשרי לירייה או שהתקציב נגמר לגמרי
+                console.log("Budget too low for another shot. Ending game soon.");
+                // נמתין רגע קצר כדי לאפשר לראות את הפגיעה לפני הצגת הודעת הסיום
+                setTimeout(endGame, 500);
+            }
         }
         
         function updateArrows() {
@@ -738,78 +975,117 @@
             const popup = document.getElementById('gameOverPopup');
             const content = document.getElementById('gameOverContent');
             
-            let html = `<p>${message}</p>`;
-            if (stats.wallets > 0) {
-                const highlightClass = (stats.cpw >= 4 && stats.cpw <= 8) ? 'highlight' : 'highlight-error';
-                html += `
-                    <p>Final CPW: <span class="${highlightClass}">$${stats.cpw.toFixed(2)}</span></p>
-                    <p>Total Wallets: <span class="${highlightClass}">${stats.wallets}</span></p>
-                    <p>Total Spent: <span class="${highlightClass}">$${stats.totalSpent.toFixed(2)}</span></p>
-                `;
-                
-                // אם ה-CPW מחוץ לטווח, נוסיף את הלינק הלימודי
-                if (stats.cpw < 4 || stats.cpw > 8) {
-                    html += `
-                        <a href="https://addressable.app" target="_blank" class="learn-link">
-                            Learn how Addressable helps you achieve lower CPW →
-                        </a>
-                    `;
+            // וידוא שסך ההוצאות לא עולה על התקציב ההתחלתי
+            if (stats.totalSpent > 1000) {
+                stats.totalSpent = 1000;
+                if (stats.wallets > 0) {
+                    stats.cpw = stats.totalSpent / stats.wallets;
                 }
             }
             
+            let html = `<p>${message}</p>`;
+            if (stats.wallets > 0) {
+                const highlightClass = (stats.cpw >= 4 && stats.cpw <= 8) ? 'highlight' : 'highlight-error';
+                const resultMessage = (stats.cpw >= 4 && stats.cpw <= 8) ? 
+                    "Congratulations! You've achieved the target CPW of $4.00 - $8.00!" : 
+                    (stats.cpw < 4) ? 
+                        "Your CPW is below the target range. Try to balance your spending!" : 
+                        "Your CPW is above the target range. Try to be more selective with your targets!";
+                
+                html += `
+                    <p style="margin: 20px 0; font-size: 24px;">${resultMessage}</p>
+                    <p>Final CPW: <span class="${highlightClass}">$${stats.cpw.toFixed(2)}</span></p>
+                    <p>Total Wallets: <span class="${highlightClass}">${stats.wallets}</span></p>
+                    <p>Total Spent: <span class="${highlightClass}">$${stats.totalSpent.toFixed(2)}</span></p>
+                    <p style="margin-top: 10px; font-size: 16px;">CPW = Total Spent / Total Wallets = $${stats.totalSpent.toFixed(2)} / ${stats.wallets} = $${stats.cpw.toFixed(2)}</p>
+                `;
+                
+                if (stats.cpw < 4 || stats.cpw > 8) {
+                    html += `
+                        <p style="margin-top: 20px; color: #ff4444;">
+                            Your CPW is outside the target range of $4.00 - $8.00!
+                        </p>
+                    `;
+                }
+                
+                // Always add the Addressable link
+                html += `
+                    <a href="https://www.addressable.io/blog/introducing-cost-per-wallet-cpw" target="_blank" class="learn-link">
+                        Learn how to reach lower CPW with Addressable →
+                    </a>
+                `;
+            } else {
+                html += `
+                    <p style="margin: 20px 0; font-size: 24px; color: #ff4444;">
+                        Game Over! You didn't acquire any wallets.
+                    </p>
+                    <p>Try to hit the crypto targets (green) and avoid the non-crypto ones!</p>
+                    <a href="https://www.addressable.io/blog/introducing-cost-per-wallet-cpw" target="_blank" class="learn-link">
+                        Learn how to reach lower CPW with Addressable →
+                    </a>
+                `;
+            }
+            
             content.innerHTML = html;
-            popup.style.display = 'block';
+            popup.style.display = 'flex';
+            popup.style.flexDirection = 'column';
             controls.unlock();
         }
         
         function handleTargetHit(target) {
+            if (isPaused || !isGameActive) return;
+            
             const logo = target.userData.logo;
+            console.log("Target hit:", logo.name, "Correct:", logo.correct);
+            console.log("Before hit - Wallets:", wallets, "Total spent:", totalSpent, "CPW:", wallets > 0 ? (totalSpent / wallets).toFixed(2) : "None");
             
+            // עדכון סך ההוצאות - כבר מחושב בפונקציית onMouseClick
+            // אין צורך להוסיף שוב את עלות הירייה כאן
+            
+            // בדיקה אם זו מטרה נכונה או לא
             if (logo.correct) {
-                wallets += 100;
-                totalSpent += 400;
+                // מטרה נכונה - מוסיפים 25 ארנקים
+                wallets += 25;
+                console.log("Hit correct target! Added 25 wallets. Total wallets:", wallets, "Total spent:", totalSpent);
             } else {
-                totalSpent += 600;
+                // מטרה לא נכונה - לא מוסיפים ארנקים
+                console.log("Hit wrong target! No wallets added. Total wallets:", wallets, "Total spent:", totalSpent);
             }
             
-            if (wallets === 0) {
-                document.getElementById('cpwValue').textContent = "None";
-            } else {
-                cpw = totalSpent / wallets;
-                document.getElementById('cpwValue').textContent = `$${cpw.toFixed(2)}`;
-            }
-            
+            // עדכון התצוגה
             document.getElementById('scoreValue').textContent = wallets;
             document.getElementById('budgetValue').textContent = budget.toFixed(2);
             
-            if (budget < SHOT_COST) {
-                let message;
-                if (wallets === 0) {
-                    message = "Game Over! No wallets acquired!";
-                } else if (cpw >= 4 && cpw <= 8) {
-                    message = "Perfect CPW range achieved!";
-                } else {
-                    message = "Your CPW is too high! Try again to improve";
-                }
-                
-                showGameOverPopup(message, {
-                    cpw: cpw,
-                    wallets: wallets,
-                    totalSpent: totalSpent
-                });
+            // עדכון ה-CPW והתראה אם צריך
+            updateCPWDisplay();
+            
+            // בדיקה אם נגמר התקציב
+            if (budget < 10 || budget === 0) { // 10 הוא המינימום האפשרי לירייה או שהתקציב נגמר לגמרי
+                console.log("Budget too low for another shot, ending game");
+                // נמתין רגע קצר כדי לאפשר לראות את הפגיעה לפני הצגת הודעת הסיום
+                setTimeout(endGame, 500);
             }
         }
         
         function resetGame() {
             cpw = 0;
+            budget = initialBudget;
             totalSpent = 0;
             wallets = 0;
-            score = 0;
-            budget = 1000.00;
+            
+            console.log("Game reset with initial values:", {
+                cpw,
+                totalSpent,
+                wallets,
+                budget,
+                initialBudget
+            });
             
             document.getElementById('cpwValue').textContent = "None";
             document.getElementById('scoreValue').textContent = wallets;
             document.getElementById('budgetValue').textContent = budget.toFixed(2);
+            document.getElementById('budgetWarning').style.display = 'none';
+            document.getElementById('cpwWarning').style.display = 'none';
             
             for (const arrow of arrows) {
                 scene.remove(arrow);
@@ -830,15 +1106,17 @@
         function animate(time) {
             requestAnimationFrame(animate);
             
-            const delta = (time - lastTime) / 1000;
-            lastTime = time;
-            
-            if (controls.isLocked && !isPaused) {
-                controls.update(delta);
-                updateArrows();
+            if (!isPaused) {
+                const delta = (time - lastTime) / 1000;
+                lastTime = time;
+                
+                if (controls.isLocked) {
+                    controls.update(delta);
+                    updateArrows();
+                }
+                
+                renderer.render(scene, camera);
             }
-            
-            renderer.render(scene, camera);
         }
         
         function handleKeyPress(event) {
@@ -849,48 +1127,177 @@
         }
 
         function togglePauseMenu() {
-            if (!isPaused) {
-                isPaused = true;
-                controls.unlock();
-                const pauseMenu = document.getElementById('pauseMenu');
-                pauseMenu.style.display = 'flex';
-            } else {
+            if (isPaused) {
                 resumeGame();
+            } else {
+                pauseGame();
             }
+        }
+
+        function pauseGame() {
+            isPaused = true;
+            document.getElementById('pauseMenu').style.display = 'flex';
+            controls.unlock();
         }
 
         function resumeGame() {
             isPaused = false;
-            const pauseMenu = document.getElementById('pauseMenu');
-            pauseMenu.style.display = 'none';
-            controls.lock();
+            document.getElementById('pauseMenu').style.display = 'none';
+            
+            // Make sure we render at least one frame before locking controls
+            // This ensures the pause menu is hidden before we lock
+            requestAnimationFrame(() => {
+                controls.lock();
+            });
+        }
+
+        function exitGame() {
+            if (confirm('Are you sure you want to exit?')) {
+                window.location.href = 'about:blank';
+            }
         }
 
         function restartGame() {
             const popup = document.getElementById('gameOverPopup');
+            const pauseMenu = document.getElementById('pauseMenu');
             popup.style.display = 'none';
+            pauseMenu.style.display = 'none';
             
+            // איפוס המשתנים בעת הפעלה מחדש של המשחק
             cpw = 0;
-            totalSpent = 0;
-            wallets = 0;
-            score = 0;
-            budget = 1000.00;
+            budget = initialBudget; // תקציב התחלתי של 1000$
+            totalSpent = 0;  // סך כל ההוצאות מתאפס
+            wallets = 0;     // מספר הארנקים שנוספו
+            isPaused = false;
+            
+            console.log("Game restarted with initial values:", {
+                cpw,
+                totalSpent,
+                wallets,
+                budget,
+                initialBudget,
+                isPaused
+            });
             
             document.getElementById('cpwValue').textContent = "None";
             document.getElementById('scoreValue').textContent = wallets;
             document.getElementById('budgetValue').textContent = budget.toFixed(2);
+            document.getElementById('budgetWarning').style.display = 'none';
+            document.getElementById('cpwWarning').style.display = 'none';
             
             for (const arrow of arrows) {
                 scene.remove(arrow);
             }
             arrows = [];
             
-            startGame();
+            // Instead of calling startGame directly, we'll use requestAnimationFrame to ensure
+            // the UI updates before we try to lock the pointer
+            requestAnimationFrame(() => {
+                isGameActive = true;
+                gameStartTime = Date.now();
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('crosshair').style.display = 'block';
+                controls.lock();
+            });
         }
-
-        function exitGame() {
-            if (confirm('Are you sure you want to exit?')) {
-                window.location.href = 'about:blank';
+        
+        // פונקציה חדשה להצגת הודעה כשהתקציב נגמר
+        function showBudgetDepletedMessage() {
+            // יצירת אלמנט הודעה זמני
+            const messageElement = document.createElement('div');
+            messageElement.style.position = 'absolute';
+            messageElement.style.top = '50%';
+            messageElement.style.left = '50%';
+            messageElement.style.transform = 'translate(-50%, -50%)';
+            messageElement.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+            messageElement.style.color = 'white';
+            messageElement.style.padding = '20px';
+            messageElement.style.borderRadius = '10px';
+            messageElement.style.fontFamily = 'Minecraft, monospace';
+            messageElement.style.fontSize = '24px';
+            messageElement.style.zIndex = '1000';
+            messageElement.style.textAlign = 'center';
+            messageElement.textContent = 'Budget Depleted!';
+            
+            document.body.appendChild(messageElement);
+            
+            // הסרת ההודעה אחרי 2 שניות
+            setTimeout(() => {
+                document.body.removeChild(messageElement);
+            }, 2000);
+        }
+        
+        function endGame() {
+            if (!isGameActive) return; // מניעת קריאות כפולות
+            
+            isGameActive = false;
+            
+            // חישוב סך ההוצאות הסופי לפי הנוסחה: תקציב התחלתי פחות תקציב נוכחי
+            totalSpent = initialBudget - budget;
+            
+            // חישוב ה-CPW הסופי
+            if (wallets > 0) {
+                cpw = totalSpent / wallets;
+            } else {
+                cpw = 0;
+            }
+            
+            console.log("Game ended with final values:", {
+                cpw: wallets > 0 ? cpw : 0,
+                wallets,
+                totalSpent,
+                budget,
+                initialBudget
+            });
+            
+            let message = "Game Over! Budget depleted!";
+            
+            // בדיקה אם השחקן השיג ארנקים
+            if (wallets === 0) {
+                message = "Game Over! No wallets acquired!";
+                console.log("Game over message: No wallets acquired");
+            } else {
+                // בדיקה אם ה-CPW בטווח הרצוי (4$ עד 8$)
+                if (cpw >= 4 && cpw <= 8) {
+                    message = "Congratulations! Target CPW achieved!";
+                    console.log("Game over message: Target CPW achieved");
+                } else {
+                    message = "Game Over! CPW outside target range.";
+                    console.log("Game over message: CPW outside target range", cpw);
+                }
+            }
+            
+            showGameOverPopup(message, {
+                cpw: wallets > 0 ? cpw : 0,
+                wallets: wallets,
+                totalSpent: totalSpent
+            });
+        }
+        
+        // פונקציה חדשה לעדכון תצוגת ה-CPW והתראות
+        function updateCPWDisplay() {
+            // חישוב סך ההוצאות לפי הנוסחה: תקציב התחלתי פחות תקציב נוכחי
+            totalSpent = initialBudget - budget;
+            
+            if (wallets > 0) {
+                // חישוב CPW לפי הנוסחה: סך ההוצאות חלקי מספר הארנקים
+                cpw = totalSpent / wallets;
+                const cpwElement = document.getElementById('cpwValue');
+                cpwElement.textContent = `$${cpw.toFixed(2)}`;
+                console.log("Updated CPW:", cpw.toFixed(2), "Calculation:", totalSpent, "/", wallets, "=", cpw);
+                
+                // בדיקה אם ה-CPW גבוה מדי (מעל 8$)
+                if (cpw > 8) {
+                    document.getElementById('cpwWarning').style.display = 'block';
+                    console.log("CPW warning displayed - CPW too high:", cpw);
+                } else {
+                    document.getElementById('cpwWarning').style.display = 'none';
+                    console.log("CPW warning hidden - CPW acceptable:", cpw);
+                }
+            } else {
+                document.getElementById('cpwValue').textContent = "None";
+                document.getElementById('cpwWarning').style.display = 'none';
+                console.log("No wallets yet, CPW is None");
             }
         }
         
