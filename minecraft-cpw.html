@@ -49,6 +49,15 @@
             font-family: 'Minecraft', monospace;
             font-size: 20px;
         }
+        #timerDisplay {
+            color: #ffcc00;
+            font-weight: bold;
+        }
+        #timerWarning {
+            color: #ff4444;
+            font-weight: bold;
+            display: none;
+        }
         #crosshair {
             position: absolute;
             top: 50%;
@@ -221,6 +230,19 @@
             border: 2px solid #3a8a3e;
             border-bottom: 4px solid #3a8a3e;
         }
+        
+        #debugButton {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            background-color: rgba(255, 0, 0, 0.7);
+            color: white;
+            border: 1px solid white;
+            cursor: pointer;
+            z-index: 2000;
+            font-family: 'Minecraft', monospace;
+        }
     </style>
 </head>
 <body>
@@ -250,6 +272,8 @@
     </div>
     
     <div id="gameInfo">
+        <div>Time Remaining: <span id="timerValue">60</span>s</div>
+        <div id="timerWarning" style="display: none;">⚠ Time running out!</div>
         <div>CPW (Cost Per Wallet): <span id="cpwValue">None</span></div>
         <div>Wallets Acquired: <span id="scoreValue">0</span></div>
         <div>Budget: $<span id="budgetValue">1,000.00</span></div>
@@ -263,6 +287,7 @@
         <h2>Game Paused</h2>
         <button onclick="resumeGame()">Resume Game</button>
         <button onclick="restartGame()">Restart Game</button>
+        <button onclick="showInstructions()">Back to Instructions</button>
         <button onclick="exitGame()">Exit Game</button>
     </div>
     
@@ -271,6 +296,8 @@
         <div id="gameOverContent"></div>
         <button onclick="restartGame()">Play Again</button>
     </div>
+    
+    <button id="debugButton" onclick="forceRestart()">Force Restart</button>
     
     <canvas id="gameCanvas"></canvas>
 
@@ -290,52 +317,58 @@
         let gameStartTime = 0; // Track when the game started
         let currentShotCost = 0; // עלות הירייה הנוכחית
         let firstHit = true;  // משתנה חדש לבדיקה אם זו הפגיעה הראשונה
+        let gameTimer = 60; // 60 second timer (changed from 30)
+        let timerInterval; // Interval for the timer
+        let targetMovementSpeed = 0.005; // Speed of target rotation/movement
+        
+        // Add a variable to track the last swap time
+        let lastSwapTime = 0;
         
         // הגדרת המטרות - אתרי קריפטו מול אתרי חדשות
         const TARGET_LOGOS = [
-            // Crypto targets - positive
-            { name: 'CMC', correct: true, color: 0x55FF55, site: 'coinmarketcap.com' },
-            { name: 'SOL', correct: true, color: 0x00FFAA, site: 'solscan.io' },
-            { name: 'DEX', correct: true, color: 0x00FF00, site: 'dextools.io' },
-            { name: 'CBX', correct: true, color: 0xAAFF00, site: 'cryptobenelux.com' },
-            { name: 'LCW', correct: true, color: 0xFFAA00, site: 'livecoinwatch.com' },
-            { name: 'CGK', correct: true, color: 0x5555FF, site: 'coingecko.com' },
-            { name: 'BSC', correct: true, color: 0xFF55FF, site: 'basescan.org' },
-            { name: 'HSH', correct: true, color: 0x0055FF, site: 'hashrate.no' },
-            { name: 'PLY', correct: true, color: 0xFF5500, site: 'polygonscan.com' },
-            { name: 'CLZ', correct: true, color: 0xAA5500, site: 'coinalyze.net' },
-            { name: 'CPP', correct: true, color: 0xFF00AA, site: 'coinpaprika.com' },
-            { name: 'CTI', correct: true, color: 0x00AAFF, site: 'cryptotimes.io' },
-            { name: 'BLC', correct: true, color: 0xAAFF55, site: 'blockchain.com' },
-            { name: 'WGU', correct: true, color: 0xFF55AA, site: 'watcher.guru' },
-            { name: 'C360', correct: true, color: 0x55FFAA, site: 'coin360.com' },
-            { name: 'CRP', correct: true, color: 0xAAAAFF, site: 'thecrypto.ap' },
-            { name: 'FTM', correct: true, color: 0xFF00FF, site: 'ftmscan.com' },
-            { name: 'CMK', correct: true, color: 0x00FFFF, site: 'coinmarketcal.com' },
-            { name: 'BNC', correct: true, color: 0xFFFF00, site: 'bravenewcoin.com' },
-            { name: 'WLI', correct: true, color: 0xFF5555, site: 'walletinvestor.com' },
+            // Crypto targets - positive - less saturated, darker colors
+            { name: 'CMC', correct: true, color: 0x3A9945, site: 'coinmarketcap.com' },
+            { name: 'SOL', correct: true, color: 0x00997A, site: 'solscan.io' },
+            { name: 'DEX', correct: true, color: 0x009900, site: 'dextools.io' },
+            { name: 'CBX', correct: true, color: 0x779900, site: 'cryptobenelux.com' },
+            { name: 'LCW', correct: true, color: 0x997700, site: 'livecoinwatch.com' },
+            { name: 'CGK', correct: true, color: 0x3A3A99, site: 'coingecko.com' },
+            { name: 'BSC', correct: true, color: 0x993A99, site: 'basescan.org' },
+            { name: 'HSH', correct: true, color: 0x003A99, site: 'hashrate.no' },
+            { name: 'PLY', correct: true, color: 0x993A00, site: 'polygonscan.com' },
+            { name: 'CLZ', correct: true, color: 0x774400, site: 'coinalyze.net' },
+            { name: 'CPP', correct: true, color: 0x990077, site: 'coinpaprika.com' },
+            { name: 'CTI', correct: true, color: 0x007799, site: 'cryptotimes.io' },
+            { name: 'BLC', correct: true, color: 0x779944, site: 'blockchain.com' },
+            { name: 'WGU', correct: true, color: 0x994477, site: 'watcher.guru' },
+            { name: 'C360', correct: true, color: 0x3A9977, site: 'coin360.com' },
+            { name: 'CRP', correct: true, color: 0x7777AA, site: 'thecrypto.ap' },
+            { name: 'FTM', correct: true, color: 0x990099, site: 'ftmscan.com' },
+            { name: 'CMK', correct: true, color: 0x009999, site: 'coinmarketcal.com' },
+            { name: 'BNC', correct: true, color: 0x999900, site: 'bravenewcoin.com' },
+            { name: 'WLI', correct: true, color: 0x993A3A, site: 'walletinvestor.com' },
             
-            // Negative targets - news and general sites
-            { name: 'CNN', correct: false, color: 0xFF0000, site: 'cnn.com' },
-            { name: 'BBC', correct: false, color: 0xAA0000, site: 'bbc.com' },
-            { name: 'FOX', correct: false, color: 0xFF5500, site: 'foxnews.com' },
-            { name: 'NYT', correct: false, color: 0xFF0055, site: 'nytimes.com' },
-            { name: 'REU', correct: false, color: 0xAA5500, site: 'reuters.com' },
-            { name: 'MSN', correct: false, color: 0xFF00AA, site: 'msn.com' },
-            { name: 'YHO', correct: false, color: 0x550000, site: 'yahoo.com' },
-            { name: 'BLM', correct: false, color: 0x555500, site: 'bloomberg.com' },
-            { name: 'FRB', correct: false, color: 0x005500, site: 'forbes.com' },
-            { name: 'TWI', correct: false, color: 0x0055AA, site: 'twitter.com' },
-            { name: 'FBK', correct: false, color: 0x0000AA, site: 'facebook.com' },
-            { name: 'INS', correct: false, color: 0xAA00AA, site: 'instagram.com' },
-            { name: 'GOG', correct: false, color: 0x555555, site: 'google.com' },
-            { name: 'BNG', correct: false, color: 0xAA5555, site: 'bing.com' },
-            { name: 'WKP', correct: false, color: 0x5555AA, site: 'wikipedia.org' },
-            { name: 'RDT', correct: false, color: 0xFF5555, site: 'reddit.com' },
-            { name: 'LKD', correct: false, color: 0x5500FF, site: 'linkedin.com' },
-            { name: 'PIN', correct: false, color: 0xFF0000, site: 'pinterest.com' },
-            { name: 'SNP', correct: false, color: 0xFFAA55, site: 'snapchat.com' },
-            { name: 'TKT', correct: false, color: 0x00AAAA, site: 'tiktok.com' }
+            // Negative targets - news and general sites - less saturated, darker colors
+            { name: 'CNN', correct: false, color: 0x990000, site: 'cnn.com' },
+            { name: 'BBC', correct: false, color: 0x770000, site: 'bbc.com' },
+            { name: 'FOX', correct: false, color: 0x993A00, site: 'foxnews.com' },
+            { name: 'NYT', correct: false, color: 0x99003A, site: 'nytimes.com' },
+            { name: 'REU', correct: false, color: 0x774400, site: 'reuters.com' },
+            { name: 'MSN', correct: false, color: 0x990077, site: 'msn.com' },
+            { name: 'YHO', correct: false, color: 0x440000, site: 'yahoo.com' },
+            { name: 'BLM', correct: false, color: 0x444400, site: 'bloomberg.com' },
+            { name: 'FRB', correct: false, color: 0x004400, site: 'forbes.com' },
+            { name: 'TWI', correct: false, color: 0x004477, site: 'twitter.com' },
+            { name: 'FBK', correct: false, color: 0x000077, site: 'facebook.com' },
+            { name: 'INS', correct: false, color: 0x770077, site: 'instagram.com' },
+            { name: 'GOG', correct: false, color: 0x444444, site: 'google.com' },
+            { name: 'BNG', correct: false, color: 0x774444, site: 'bing.com' },
+            { name: 'WKP', correct: false, color: 0x444477, site: 'wikipedia.org' },
+            { name: 'RDT', correct: false, color: 0x993A3A, site: 'reddit.com' },
+            { name: 'LKD', correct: false, color: 0x4400AA, site: 'linkedin.com' },
+            { name: 'PIN', correct: false, color: 0x990000, site: 'pinterest.com' },
+            { name: 'SNP', correct: false, color: 0x997744, site: 'snapchat.com' },
+            { name: 'TKT', correct: false, color: 0x007777, site: 'tiktok.com' }
         ];
 
         class SimpleControls {
@@ -596,49 +629,184 @@
         }
 
         function init() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87CEEB);  // שמיים כחולים בהירים
-            
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 1.8, 8);  // Set initial camera height to player height
-            
-            renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gameCanvas'), antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-            
-            // תאורת שמש
-            const sunLight = new THREE.DirectionalLight(0xffffaa, 1.5);
-            sunLight.position.set(50, 100, 50);
-            sunLight.castShadow = true;
-            scene.add(sunLight);
-            
-            // אור אמביינט חם
-            const ambientLight = new THREE.AmbientLight(0xffeecc, 0.7);
-            scene.add(ambientLight);
-            
-            // אפקט לנס פלר
-            const lensflare = createLensflare();
-            sunLight.add(lensflare);
-            
-            createMinecraftWorld();
-            createTrees();
-            createTargets();
-            
-            controls = new SimpleControls(camera, document.body);
-            
-            window.addEventListener('resize', onWindowResize);
-            document.addEventListener('click', onMouseClick);
-            document.addEventListener('keydown', handleKeyPress);
-            
-            animate();
-            
-            document.getElementById('startButton').addEventListener('click', startGame);
+            try {
+                console.log("Initializing game...");
+                
+                // Create scene first with a fallback color
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x87CEEB); // Default sky blue
+                console.log("Scene created with fallback background");
+                
+                // Initialize camera with safe defaults
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.set(0, 1.8, 8);
+                console.log("Camera initialized");
+
+                // Create a simple sky color as fallback
+                scene.background = new THREE.Color(0x87CEEB);
+                console.log("Default sky background set");
+
+                try {
+                    // Create Minecraft-style sky gradient
+                    const sunsetColors = [
+                        new THREE.Color(0x5989CF), // Darker Minecraft blue at top
+                        new THREE.Color(0x7AA5D9), // Medium blue
+                        new THREE.Color(0x9BBCE8), // Light blue
+                        new THREE.Color(0xC4D7F2)  // Almost white at horizon
+                    ];
+                    
+                    const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
+                    const skyMaterial = new THREE.ShaderMaterial({
+                        uniforms: {
+                            topColor: { value: sunsetColors[0] },
+                            bottomColor: { value: sunsetColors[3] },
+                            offset: { value: 33 },
+                            exponent: { value: 0.4 }
+                        },
+                        vertexShader: `
+                            varying vec3 vWorldPosition;
+                            void main() {
+                                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                                vWorldPosition = worldPosition.xyz;
+                                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                            }
+                        `,
+                        fragmentShader: `
+                            uniform vec3 topColor;
+                            uniform vec3 bottomColor;
+                            uniform float offset;
+                            uniform float exponent;
+                            varying vec3 vWorldPosition;
+                            void main() {
+                                float h = normalize(vWorldPosition + offset).y;
+                                gl_FragColor = vec4(mix(bottomColor, topColor, max(pow(max(h, 0.0), exponent), 0.0)), 1.0);
+                            }
+                        `,
+                        side: THREE.BackSide
+                    });
+                    
+                    const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+                    scene.add(sky);
+                    console.log("Minecraft-style sky created");
+                } catch (skyError) {
+                    console.error("Error creating sky:", skyError);
+                    // Fallback to simple Minecraft blue sky
+                    scene.background = new THREE.Color(0x64B5F6);
+                }
+                
+                // Initialize renderer with error handling
+                try {
+                    const canvas = document.getElementById('gameCanvas');
+                    if (!canvas) {
+                        throw new Error("Canvas element not found");
+                    }
+                    
+                    renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                    renderer.setPixelRatio(window.devicePixelRatio);
+                    renderer.shadowMap.enabled = true;
+                    console.log("Renderer initialized successfully");
+                } catch (rendererError) {
+                    console.error("Error initializing renderer:", rendererError);
+                    alert("Error initializing 3D renderer. The game may not display correctly.");
+                    // Create a fallback renderer to prevent complete failure
+                    renderer = new THREE.WebGLRenderer({ antialias: false });
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                    document.body.appendChild(renderer.domElement);
+                }
+                
+                // Continue with the rest of initialization with try/catch blocks
+                try {
+                    // Minecraft-style directional light - brighter and more yellow
+                    const sunLight = new THREE.DirectionalLight(0xFFFFC0, 1.5);
+                    sunLight.position.set(100, 200, 100);
+                    sunLight.castShadow = true;
+                    scene.add(sunLight);
+                    
+                    // אור אמביינט חם - make it brighter
+                    const ambientLight = new THREE.AmbientLight(0xffeecc, 1.2);
+                    scene.add(ambientLight);
+                    console.log("Lighting set up");
+                } catch (lightError) {
+                    console.error("Error setting up lights:", lightError);
+                    // Add fallback lighting
+                    scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+                }
+                
+                try {
+                    createMinecraftWorld();
+                    console.log("Minecraft world created");
+                } catch (worldError) {
+                    console.error("Error creating world:", worldError);
+                }
+                
+                try {
+                    createTrees();
+                    console.log("Trees created");
+                } catch (treeError) {
+                    console.error("Error creating trees:", treeError);
+                }
+                
+                try {
+                    createTargets();
+                    console.log("Targets created");
+                } catch (targetError) {
+                    console.error("Error creating targets:", targetError);
+                }
+                
+                try {
+                    controls = new SimpleControls(camera, document.body);
+                    console.log("Controls initialized");
+                } catch (controlsError) {
+                    console.error("Error initializing controls:", controlsError);
+                }
+                
+                // Set up event listeners with error handling
+                try {
+                    window.addEventListener('resize', onWindowResize);
+                    document.addEventListener('click', onMouseClick);
+                    document.addEventListener('keydown', handleKeyPress);
+                    console.log("Event listeners added");
+                } catch (eventError) {
+                    console.error("Error adding event listeners:", eventError);
+                }
+                
+                // Set up start button with multiple fallbacks
+                try {
+                    const startButton = document.getElementById('startButton');
+                    if (startButton) {
+                        startButton.addEventListener('click', function() {
+                            try {
+                                startGame();
+                            } catch (startError) {
+                                console.error("Error in startGame:", startError);
+                                // Fallback start game function
+                                document.getElementById('loadingScreen').style.display = 'none';
+                                document.getElementById('crosshair').style.display = 'block';
+                                isGameActive = true;
+                            }
+                        });
+                        console.log("Start button event listener added");
+                    } else {
+                        console.error("Start button element not found");
+                    }
+                } catch (buttonError) {
+                    console.error("Error setting up start button:", buttonError);
+                }
+                
+                // Start animation loop with error handling
+                animate();
+                console.log("Animation loop started");
+                
+                console.log("Game initialization complete");
+            } catch (error) {
+                console.error("Critical error initializing game:", error);
+                alert("Critical error initializing game. Please refresh the page and try again.");
+            }
         }
         
         function createMinecraftWorld() {
-            // דשא מפורט יותר
+            // Grass plane with Minecraft texture
             const grassGeometry = new THREE.PlaneGeometry(100, 100);
             const grassTexture = createGrassTexture();
             const grassMaterial = new THREE.MeshStandardMaterial({ 
@@ -651,19 +819,20 @@
             grass.receiveShadow = true;
             scene.add(grass);
 
-            // הרים ברקע
+            // Mountains in Minecraft style
             for (let i = 0; i < 10; i++) {
-                const mountainGeometry = new THREE.BoxGeometry(20, Math.random() * 15 + 10, 20);
+                // More blocky mountains
+                const mountainGeometry = new THREE.BoxGeometry(20, Math.floor(Math.random() * 15) + 10, 20);
                 const mountainMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0x557755,
+                    color: 0x686868, // Authentic Minecraft stone gray
                     roughness: 1,
                     metalness: 0
                 });
                 const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
                 mountain.position.set(
-                    Math.random() * 100 - 50,
+                    Math.floor(Math.random() * 100 - 50),
                     mountainGeometry.parameters.height / 2 - 5,
-                    Math.random() * -50 - 30
+                    Math.floor(Math.random() * -50 - 30)
                 );
                 mountain.castShadow = true;
                 mountain.receiveShadow = true;
@@ -677,18 +846,30 @@
             canvas.height = 256;
             const ctx = canvas.getContext('2d');
             
-            // בסיס דשא
-            ctx.fillStyle = '#55AA55';
+            // Minecraft-style grass base - darker, less saturated green
+            ctx.fillStyle = '#2E5C1F'; // Darker, less saturated forest green
             ctx.fillRect(0, 0, 256, 256);
             
-            // פרטים קטנים של דשא
+            // Add Minecraft-style texture pattern
             for (let i = 0; i < 1000; i++) {
-                ctx.fillStyle = `rgb(${85 + Math.random() * 30}, ${170 + Math.random() * 30}, ${85 + Math.random() * 30})`;
+                // Use more natural, less saturated forest colors
+                const colors = [
+                    '#2E5C1F', // Base forest green
+                    '#234518', // Darker forest green
+                    '#396B27', // Slightly lighter forest green
+                    '#1A3012'  // Very dark forest green for shadows
+                ];
+                
+                // Create blocky texture pattern
+                const blockSize = 4 + Math.floor(Math.random() * 4);
+                const colorIndex = Math.floor(Math.random() * colors.length);
+                
+                ctx.fillStyle = colors[colorIndex];
                 ctx.fillRect(
-                    Math.random() * 256,
-                    Math.random() * 256,
-                    2,
-                    Math.random() * 4 + 2
+                    Math.floor(Math.random() * 256 / blockSize) * blockSize,
+                    Math.floor(Math.random() * 256 / blockSize) * blockSize,
+                    blockSize,
+                    blockSize
                 );
             }
             
@@ -714,10 +895,10 @@
         function createTree() {
             const treeGroup = new THREE.Group();
             
-            // גזע
+            // Tree trunk - natural brown
             const trunkGeometry = new THREE.BoxGeometry(1, 5, 1);
             const trunkMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x8B4513,
+                color: 0x5C4033, // Natural brown color
                 roughness: 0.9,
                 metalness: 0
             });
@@ -726,10 +907,10 @@
             trunk.castShadow = true;
             treeGroup.add(trunk);
             
-            // עלים
+            // Tree leaves - darker, less saturated green
             const leavesGeometry = new THREE.BoxGeometry(4, 4, 4);
             const leavesMaterial = new THREE.MeshStandardMaterial({ 
-                color: 0x2D5A27,
+                color: 0x2E5C1F, // Darker, less saturated forest green
                 roughness: 1,
                 metalness: 0
             });
@@ -739,21 +920,6 @@
             treeGroup.add(leaves);
             
             return treeGroup;
-        }
-
-        function createLensflare() {
-            const textureLoader = new THREE.TextureLoader();
-            const textureFlare = textureLoader.load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAACXBIWXMAAA7DAAAOwwHHb6hkAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAAAfhJREFUWIXt1j9oE2EYx/HvXS6XxqRNakVRqmJVcHBwEHFxkoKDiNSlIB2c3F0cHMTFwUHExckxg4vQSRQXwVk6KDgUxBYUW/8UW9K0yV3ucnc5h9pGEy9NLr3FC7/leN/nfT7v+zzHe6eEEAJBEHD7QYys48Dq9/Ge5Hj7sU6pVOJfqOOiVa1gGAZ7+wbxPBfLsvE8D1EU8TwPVVVZr9XQdR1Jkm6FELqui2maGIaBpmm4rovv+/i+T7vdRhAEwuEwkUiEWCxGIpEgGo0iSdKtEKZpks/nKRQKVKtVXNfFcRyCwSChUIhgMIgkSXS7XXRdp1wuE4/HSafTZDIZksnk3yM6nQ75fJ5CoYBpmhiGged5dLtdJEkiEAhc6xVFEVEU8X2fVqvF4uIiS0tLZLNZMpkMiqLcjGg0GszNzVGpVNB1HcdxcBwHQRAQRRFZlpFlGUVRiEQiKIqCLMsIgkCr1WJtbY1SqcTU1BTJZPLPiEajwezs7GV4p9PB930EQUBRFCKRCLFYjHg8TjQaRZZlJEm6jGu32+i6zsrKCpqmMTMzQyqV+hWxvLzM/Pw8zWbzMlySJERRvJbuKIqCLMt4nke73abZbLK6usry8jKTk5OMjY3R19d3hVhfX+fk5ARN02g0GrTbbQB6e3vp7+9ncHCQkZERhoaGGB4eJh6P8z/xGZqwJ7wZkF7+AAAAAElFTkSuQmCC');
-            
-            const lensflare = new THREE.Sprite(new THREE.SpriteMaterial({
-                map: textureFlare,
-                color: 0xffffaa,
-                transparent: true,
-                blending: THREE.AdditiveBlending
-            }));
-            lensflare.scale.set(100, 100, 1);
-            
-            return lensflare;
         }
 
         function createTargets() {
@@ -782,72 +948,249 @@
         }
         
         function createTarget(logo, x, y, z) {
-            const geometry = new THREE.BoxGeometry(3, 1.5, 0.3);  // הגדלת המטרות
+            // More blocky Minecraft-style target
+            const geometry = new THREE.BoxGeometry(3, 1.5, 0.5);  // Thicker for more blocky look
             const material = new THREE.MeshStandardMaterial({ 
                 color: logo.color,
                 roughness: 1,
-                metalness: 0,
+                metalness: 0.1,
                 flatShading: true
             });
             const target = new THREE.Mesh(geometry, material);
             target.position.set(x, y, z);
-            target.userData = { logo: logo };
+            target.userData = { 
+                logo: logo,
+                initialPosition: new THREE.Vector3(x, y, z),
+                movementPhase: Math.random() * Math.PI * 2,
+                movementRadius: 0.5 + Math.random() * 0.5,
+                rotationSpeed: (Math.random() * 0.01) - 0.005
+            };
             scene.add(target);
             targets.push(target);
             
+            // Create Minecraft-style pixelated text
             const canvas = document.createElement('canvas');
-            canvas.width = 1024;  // הגדלה משמעותית של הקנבס
-            canvas.height = 512;  // הגדלת גובה הקנבס
+            canvas.width = 1024;
+            canvas.height = 512;
             const context = canvas.getContext('2d');
+            
+            // Fill with transparent background
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Set text properties for Minecraft style
             context.fillStyle = '#ffffff';
-            context.font = 'Bold 96px Minecraft';  // הגדלת הפונט ל-96
+            context.font = 'Bold 96px Minecraft';
             context.textAlign = 'center';
             context.textBaseline = 'middle';
             
-            let fontSize = 96;  // התחלה מפונט גדול יותר
+            // Adjust font size if needed
+            let fontSize = 96;
             let textWidth = context.measureText(logo.site).width;
-            while (textWidth > 900 && fontSize > 48) {  // הגדלת גודל המינימום ל-48
+            while (textWidth > 900 && fontSize > 48) {
                 fontSize--;
                 context.font = `Bold ${fontSize}px Minecraft`;
                 textWidth = context.measureText(logo.site).width;
             }
             
-            context.fillText(logo.site, 512, 256);  // התאמת מיקום הטקסט למרכז הקנבס החדש
+            // Draw pixelated text
+            context.fillText(logo.site, 512, 256);
             
+            // Create a border around the text for Minecraft style
             const texture = new THREE.CanvasTexture(canvas);
-            const labelMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-            const labelGeometry = new THREE.PlaneGeometry(4, 2);  // הגדלת גובה התווית
+            texture.magFilter = THREE.NearestFilter; // Pixelated look
+            texture.minFilter = THREE.LinearFilter;
+            
+            const labelMaterial = new THREE.MeshBasicMaterial({ 
+                map: texture, 
+                transparent: true,
+                alphaTest: 0.1 // Sharper edges
+            });
+            const labelGeometry = new THREE.PlaneGeometry(4, 2);
             const label = new THREE.Mesh(labelGeometry, labelMaterial);
-            label.position.z = 0.16;
+            label.position.z = 0.26; // Position slightly further out
             target.add(label);
+            
+            // Add a thin border to make it more Minecraft-like
+            const borderGeometry = new THREE.BoxGeometry(3.1, 1.6, 0.1);
+            const borderMaterial = new THREE.MeshBasicMaterial({ 
+                color: 0x000000,
+                transparent: true,
+                opacity: 0.3
+            });
+            const border = new THREE.Mesh(borderGeometry, borderMaterial);
+            border.position.z = -0.1;
+            target.add(border);
         }
         
         function startGame() {
-            // איפוס המשתנים בתחילת המשחק
-            cpw = 0;
-            budget = initialBudget; // תקציב התחלתי של 1000$
-            totalSpent = 0;  // סך כל ההוצאות מתאפס
-            wallets = 0;     // מספר הארנקים שנוספו
+            try {
+                console.log("Starting game...");
+                
+                // איפוס המשתנים בתחילת המשחק
+                cpw = 0;
+                budget = initialBudget; // תקציב התחלתי של 1000$
+                totalSpent = 0;  // סך כל ההוצאות מתאפס
+                wallets = 0;     // מספר הארנקים שנוספו
+                gameTimer = 60;  // Reset timer to 60 seconds (changed from 30)
+                
+                console.log("Game started with initial values:", {
+                    cpw,
+                    totalSpent,
+                    wallets,
+                    budget,
+                    initialBudget,
+                    gameTimer
+                });
+                
+                // Hide loading screen and show game elements
+                const loadingScreen = document.getElementById('loadingScreen');
+                if (loadingScreen) {
+                    loadingScreen.style.display = 'none';
+                    console.log("Loading screen hidden");
+                } else {
+                    console.error("Loading screen element not found");
+                }
+                
+                const crosshair = document.getElementById('crosshair');
+                if (crosshair) {
+                    crosshair.style.display = 'block';
+                    console.log("Crosshair displayed");
+                } else {
+                    console.error("Crosshair element not found");
+                }
+                
+                // Update UI elements
+                try {
+                    const cpwElement = document.getElementById('cpwValue');
+                    if (cpwElement) cpwElement.textContent = "None";
+                    
+                    const scoreElement = document.getElementById('scoreValue');
+                    if (scoreElement) scoreElement.textContent = "0";
+                    
+                    const budgetElement = document.getElementById('budgetValue');
+                    if (budgetElement) budgetElement.textContent = budget.toFixed(2);
+                    
+                    const timerElement = document.getElementById('timerValue');
+                    if (timerElement) timerElement.textContent = gameTimer;
+                    
+                    const budgetWarning = document.getElementById('budgetWarning');
+                    if (budgetWarning) budgetWarning.style.display = 'none';
+                    
+                    const cpwWarning = document.getElementById('cpwWarning');
+                    if (cpwWarning) cpwWarning.style.display = 'none';
+                    
+                    const timerWarning = document.getElementById('timerWarning');
+                    if (timerWarning) timerWarning.style.display = 'none';
+                } catch (uiError) {
+                    console.error("Error updating UI elements:", uiError);
+                }
+                
+                // Start the timer
+                try {
+                    startTimer();
+                } catch (timerError) {
+                    console.error("Error starting timer:", timerError);
+                    // Create a fallback timer if needed
+                    if (!timerInterval) {
+                        timerInterval = setInterval(() => {
+                            if (isGameActive && !isPaused) {
+                                gameTimer--;
+                                if (gameTimer <= 0) {
+                                    clearInterval(timerInterval);
+                                    endGame('time');
+                                }
+                            }
+                        }, 1000);
+                    }
+                }
+                
+                // Lock controls and activate game
+                try {
+                    if (controls) {
+                        controls.lock();
+                        console.log("Controls locked");
+                    } else {
+                        console.error("Controls not initialized");
+                        // Create a simple fallback for controls if needed
+                        document.addEventListener('mousemove', function(event) {
+                            // Simple mouse look fallback
+                            if (isGameActive && !isPaused) {
+                                const movementX = event.movementX || 0;
+                                const movementY = event.movementY || 0;
+                                if (camera) {
+                                    camera.rotation.y -= movementX * 0.002;
+                                    camera.rotation.x -= movementY * 0.002;
+                                }
+                            }
+                        });
+                    }
+                } catch (controlsError) {
+                    console.error("Error locking controls:", controlsError);
+                }
+                
+                isGameActive = true;
+                gameStartTime = Date.now(); // Record the time when game started
+                console.log("Game successfully started");
+            } catch (error) {
+                console.error("Error starting game:", error);
+                // Fallback to ensure the game at least starts visually
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('crosshair').style.display = 'block';
+                isGameActive = true;
+                
+                // Show a user-friendly error message
+                const errorMessage = document.createElement('div');
+                errorMessage.style.position = 'absolute';
+                errorMessage.style.top = '10px';
+                errorMessage.style.left = '50%';
+                errorMessage.style.transform = 'translateX(-50%)';
+                errorMessage.style.backgroundColor = 'rgba(255, 0, 0, 0.7)';
+                errorMessage.style.color = 'white';
+                errorMessage.style.padding = '10px';
+                errorMessage.style.borderRadius = '5px';
+                errorMessage.style.zIndex = '2000';
+                errorMessage.textContent = 'Game started with limited functionality. Try refreshing the page if issues persist.';
+                document.body.appendChild(errorMessage);
+                
+                // Remove the error message after 5 seconds
+                setTimeout(() => {
+                    document.body.removeChild(errorMessage);
+                }, 5000);
+            }
+        }
+        
+        function startTimer() {
+            // Clear any existing timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
             
-            console.log("Game started with initial values:", {
-                cpw,
-                totalSpent,
-                wallets,
-                budget,
-                initialBudget
-            });
-            
-            document.getElementById('loadingScreen').style.display = 'none';
-            document.getElementById('crosshair').style.display = 'block';
-            document.getElementById('cpwValue').textContent = "None";
-            document.getElementById('scoreValue').textContent = "0";
-            document.getElementById('budgetValue').textContent = budget.toFixed(2);
-            document.getElementById('budgetWarning').style.display = 'none';
-            document.getElementById('cpwWarning').style.display = 'none';
-            
-            controls.lock();
-            isGameActive = true;
-            gameStartTime = Date.now(); // Record the time when game started
+            // Set up a new timer that counts down every second
+            timerInterval = setInterval(() => {
+                if (!isPaused && isGameActive) {
+                    gameTimer--;
+                    
+                    // Update the timer display
+                    const timerElement = document.getElementById('timerValue');
+                    if (timerElement) {
+                        timerElement.textContent = gameTimer;
+                    }
+                    
+                    // Show warning when time is running low (15 seconds or less)
+                    if (gameTimer <= 15) {
+                        const warningElement = document.getElementById('timerWarning');
+                        if (warningElement) {
+                            warningElement.style.display = 'block';
+                        }
+                    }
+                    
+                    // End game when timer reaches 0
+                    if (gameTimer <= 0) {
+                        clearInterval(timerInterval);
+                        endGame('time');
+                    }
+                }
+            }, 1000);
         }
         
         function onMouseClick(event) {
@@ -879,9 +1222,37 @@
             // עדכון ה-CPW והתראה אם צריך
             updateCPWDisplay();
             
-            const arrowGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.5);
-            const arrowMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            // Create Minecraft-style arrow
+            const arrowGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.8); // Longer arrow
+            const arrowMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xA0522D, // Minecraft arrow color
+                roughness: 1,
+                metalness: 0
+            });
             const arrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+            
+            // Add arrow fletching (the feathers at the back)
+            const fletchingGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.1);
+            const fletchingMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xDDDDDD, // Light gray
+                roughness: 1,
+                metalness: 0
+            });
+            const fletching = new THREE.Mesh(fletchingGeometry, fletchingMaterial);
+            fletching.position.z = -0.35;
+            arrow.add(fletching);
+            
+            // Add arrow tip
+            const tipGeometry = new THREE.ConeGeometry(0.1, 0.3, 4);
+            const tipMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x808080, // Gray metal
+                roughness: 0.5,
+                metalness: 0.5
+            });
+            const tip = new THREE.Mesh(tipGeometry, tipMaterial);
+            tip.position.z = 0.5;
+            tip.rotation.x = Math.PI / 2;
+            arrow.add(tip);
             
             arrow.position.copy(camera.position);
             
@@ -889,7 +1260,7 @@
             camera.getWorldDirection(direction);
             arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), direction);
             
-            arrow.userData = { velocity: direction.multiplyScalar(1.0) };
+            arrow.userData = { velocity: direction.multiplyScalar(1.5) }; // Faster arrow
             
             scene.add(arrow);
             arrows.push(arrow);
@@ -931,20 +1302,37 @@
         
         function createExplosionEffect(position) {
             const particles = [];
-            const particleCount = 8;
+            const particleCount = 12; // More particles
+            const colors = [
+                0xFFFFFF, // White
+                0xFFFF00, // Yellow
+                0xFF9900, // Orange
+                0xFF0000  // Red
+            ];
             
             for (let i = 0; i < particleCount; i++) {
-                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-                const material = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+                // Minecraft-style blocky particles
+                const size = 0.15 + Math.random() * 0.15;
+                const geometry = new THREE.BoxGeometry(size, size, size);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    transparent: true
+                });
                 const particle = new THREE.Mesh(geometry, material);
                 
                 particle.position.copy(position);
+                // More explosive velocity
                 particle.userData.velocity = new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.3,
-                    Math.random() * 0.2,
-                    (Math.random() - 0.5) * 0.3
+                    (Math.random() - 0.5) * 0.5,
+                    Math.random() * 0.5,
+                    (Math.random() - 0.5) * 0.5
                 );
                 particle.userData.life = 1.0;
+                particle.userData.rotationSpeed = new THREE.Vector3(
+                    Math.random() * 0.2,
+                    Math.random() * 0.2,
+                    Math.random() * 0.2
+                );
                 
                 scene.add(particle);
                 particles.push(particle);
@@ -954,8 +1342,19 @@
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const particle = particles[i];
                     particle.position.add(particle.userData.velocity);
-                    particle.userData.velocity.y -= 0.01;  // גרביטציה
+                    particle.userData.velocity.y -= 0.02; // Stronger gravity
+                    
+                    // Rotate particles for more dynamic effect
+                    particle.rotation.x += particle.userData.rotationSpeed.x;
+                    particle.rotation.y += particle.userData.rotationSpeed.y;
+                    particle.rotation.z += particle.userData.rotationSpeed.z;
+                    
                     particle.userData.life -= 0.02;
+                    
+                    // Fade out
+                    if (particle.material.opacity > 0) {
+                        particle.material.opacity = particle.userData.life;
+                    }
                     
                     if (particle.userData.life <= 0) {
                         scene.remove(particle);
@@ -985,11 +1384,12 @@
             
             let html = `<p>${message}</p>`;
             if (stats.wallets > 0) {
-                const highlightClass = (stats.cpw >= 4 && stats.cpw <= 8) ? 'highlight' : 'highlight-error';
+                // Update the logic to treat CPW below $4.00 as positive
+                const highlightClass = (stats.cpw <= 8) ? 'highlight' : 'highlight-error';
                 const resultMessage = (stats.cpw >= 4 && stats.cpw <= 8) ? 
                     "Congratulations! You've achieved the target CPW of $4.00 - $8.00!" : 
                     (stats.cpw < 4) ? 
-                        "Your CPW is below the target range. Try to balance your spending!" : 
+                        "Excellent! Your CPW is below $4.00 - that's even better than the target range!" : 
                         "Your CPW is above the target range. Try to be more selective with your targets!";
                 
                 html += `
@@ -997,13 +1397,15 @@
                     <p>Final CPW: <span class="${highlightClass}">$${stats.cpw.toFixed(2)}</span></p>
                     <p>Total Wallets: <span class="${highlightClass}">${stats.wallets}</span></p>
                     <p>Total Spent: <span class="${highlightClass}">$${stats.totalSpent.toFixed(2)}</span></p>
+                    <p>Time Remaining: <span class="${highlightClass}">${stats.timeRemaining}</span> seconds</p>
                     <p style="margin-top: 10px; font-size: 16px;">CPW = Total Spent / Total Wallets = $${stats.totalSpent.toFixed(2)} / ${stats.wallets} = $${stats.cpw.toFixed(2)}</p>
                 `;
                 
-                if (stats.cpw < 4 || stats.cpw > 8) {
+                // Update the warning message to only show for CPW > 8
+                if (stats.cpw > 8) {
                     html += `
                         <p style="margin-top: 20px; color: #ff4444;">
-                            Your CPW is outside the target range of $4.00 - $8.00!
+                            Your CPW is above the target range of $4.00 - $8.00!
                         </p>
                     `;
                 }
@@ -1106,16 +1508,28 @@
         function animate(time) {
             requestAnimationFrame(animate);
             
-            if (!isPaused) {
-                const delta = (time - lastTime) / 1000;
-                lastTime = time;
-                
-                if (controls.isLocked) {
-                    controls.update(delta);
-                    updateArrows();
+            try {
+                if (!isPaused) {
+                    const delta = (time - lastTime) / 1000;
+                    lastTime = time;
+                    
+                    if (controls && controls.isLocked) {
+                        controls.update(delta);
+                        updateArrows();
+                        
+                        // Only update targets if the game is active
+                        if (isGameActive) {
+                            updateTargets(delta);
+                        }
+                    }
+                    
+                    if (renderer && scene && camera) {
+                        renderer.render(scene, camera);
+                    }
                 }
-                
-                renderer.render(scene, camera);
+            } catch (error) {
+                console.error("Error in animation loop:", error);
+                // Don't stop the animation loop on error
             }
         }
         
@@ -1168,6 +1582,7 @@
             budget = initialBudget; // תקציב התחלתי של 1000$
             totalSpent = 0;  // סך כל ההוצאות מתאפס
             wallets = 0;     // מספר הארנקים שנוספו
+            gameTimer = 60;  // Reset timer to 60 seconds (changed from 30)
             isPaused = false;
             
             console.log("Game restarted with initial values:", {
@@ -1176,14 +1591,17 @@
                 wallets,
                 budget,
                 initialBudget,
+                gameTimer,
                 isPaused
             });
             
             document.getElementById('cpwValue').textContent = "None";
             document.getElementById('scoreValue').textContent = wallets;
             document.getElementById('budgetValue').textContent = budget.toFixed(2);
+            document.getElementById('timerValue').textContent = gameTimer;
             document.getElementById('budgetWarning').style.display = 'none';
             document.getElementById('cpwWarning').style.display = 'none';
+            document.getElementById('timerWarning').style.display = 'none';
             
             for (const arrow of arrows) {
                 scene.remove(arrow);
@@ -1197,6 +1615,10 @@
                 gameStartTime = Date.now();
                 document.getElementById('loadingScreen').style.display = 'none';
                 document.getElementById('crosshair').style.display = 'block';
+                
+                // Start the timer
+                startTimer();
+                
                 controls.lock();
             });
         }
@@ -1227,10 +1649,15 @@
             }, 2000);
         }
         
-        function endGame() {
+        function endGame(reason) {
             if (!isGameActive) return; // מניעת קריאות כפולות
             
             isGameActive = false;
+            
+            // Clear the timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
             
             // חישוב סך ההוצאות הסופי לפי הנוסחה: תקציב התחלתי פחות תקציב נוכחי
             totalSpent = initialBudget - budget;
@@ -1247,30 +1674,41 @@
                 wallets,
                 totalSpent,
                 budget,
-                initialBudget
+                initialBudget,
+                gameTimer,
+                reason
             });
             
             let message = "Game Over! Budget depleted!";
             
+            // Check if game ended due to time
+            if (reason === 'time') {
+                message = "Game Over! Time's up!";
+                console.log("Game over message: Time's up");
+            }
             // בדיקה אם השחקן השיג ארנקים
-            if (wallets === 0) {
+            else if (wallets === 0) {
                 message = "Game Over! No wallets acquired!";
                 console.log("Game over message: No wallets acquired");
             } else {
-                // בדיקה אם ה-CPW בטווח הרצוי (4$ עד 8$)
+                // בדיקה אם ה-CPW בטווח הרצוי (4$ עד 8$) או מתחת לטווח (מתחת ל-4$)
                 if (cpw >= 4 && cpw <= 8) {
                     message = "Congratulations! Target CPW achieved!";
                     console.log("Game over message: Target CPW achieved");
+                } else if (cpw < 4) {
+                    message = "Congratulations! CPW below $4.00 - even better than target!";
+                    console.log("Game over message: CPW below target - excellent!");
                 } else {
-                    message = "Game Over! CPW outside target range.";
-                    console.log("Game over message: CPW outside target range", cpw);
+                    message = "Game Over! CPW above target range.";
+                    console.log("Game over message: CPW above target range", cpw);
                 }
             }
             
             showGameOverPopup(message, {
                 cpw: wallets > 0 ? cpw : 0,
                 wallets: wallets,
-                totalSpent: totalSpent
+                totalSpent: totalSpent,
+                timeRemaining: gameTimer
             });
         }
         
@@ -1301,7 +1739,175 @@
             }
         }
         
-        init();
+        function updateTargets(delta) {
+            try {
+                const time = Date.now() * 0.001; // Current time in seconds
+                
+                // Check if it's time to swap targets (every 2 seconds)
+                if (Math.floor(time) % 2 === 0 && Math.floor(time) !== lastSwapTime) {
+                    // Swap multiple random pairs of targets
+                    for (let i = 0; i < 3; i++) {
+                        swapRandomTargets();
+                    }
+                    lastSwapTime = Math.floor(time);
+                }
+                
+                targets.forEach(target => {
+                    if (!target || !target.userData || !target.userData.initialPosition) {
+                        return; // Skip targets with missing data
+                    }
+                    
+                    // Apply very subtle movement to make targets look alive
+                    // but not float around too much
+                    const userData = target.userData;
+                    const initialPos = userData.initialPosition;
+                    
+                    // Use much smaller movement radius for stability
+                    const movementRadius = 0.05;
+                    const movementPhase = userData.movementPhase || 0;
+                    
+                    // Very subtle movement
+                    target.position.x = initialPos.x + Math.sin(time + movementPhase) * movementRadius;
+                    target.position.y = initialPos.y + Math.sin(time * 0.5 + movementPhase) * (movementRadius * 0.3);
+                    
+                    // Gentle rotation with limited angle
+                    target.rotation.z = Math.sin(time * 0.5 + movementPhase) * 0.02;
+                });
+            } catch (error) {
+                console.error("Error updating targets:", error);
+            }
+        }
+        
+        // Add a new function to swap random targets
+        function swapRandomTargets() {
+            if (targets.length < 2) return;
+            
+            // Select two random targets
+            const index1 = Math.floor(Math.random() * targets.length);
+            let index2 = Math.floor(Math.random() * targets.length);
+            
+            // Make sure we select two different targets
+            while (index2 === index1) {
+                index2 = Math.floor(Math.random() * targets.length);
+            }
+            
+            const target1 = targets[index1];
+            const target2 = targets[index2];
+            
+            // Instead of swapping initial positions, directly teleport the targets
+            // Save current positions
+            const pos1 = target1.position.clone();
+            const pos2 = target2.position.clone();
+            
+            // Teleport targets to each other's positions
+            target1.position.copy(pos2);
+            target2.position.copy(pos1);
+            
+            // Update their initialPosition to match their new positions
+            target1.userData.initialPosition.copy(pos2);
+            target2.userData.initialPosition.copy(pos1);
+            
+            console.log(`Teleported targets: ${target1.userData.logo.name} and ${target2.userData.logo.name}`);
+        }
+        
+        // Add a global error handler
+        window.addEventListener('error', function(event) {
+            console.error('Global error caught:', event.error);
+        });
+        
+        // Force restart function for debugging
+        function forceRestart() {
+            console.log("Force restarting game...");
+            
+            // Clear any existing timers
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+            
+            // Reset game state
+            isGameActive = false;
+            isPaused = false;
+            
+            // Show loading screen
+            const loadingScreen = document.getElementById('loadingScreen');
+            if (loadingScreen) {
+                loadingScreen.style.display = 'flex';
+            }
+            
+            // Hide game elements
+            const crosshair = document.getElementById('crosshair');
+            if (crosshair) {
+                crosshair.style.display = 'none';
+            }
+            
+            const pauseMenu = document.getElementById('pauseMenu');
+            if (pauseMenu) {
+                pauseMenu.style.display = 'none';
+            }
+            
+            const gameOverPopup = document.getElementById('gameOverPopup');
+            if (gameOverPopup) {
+                gameOverPopup.style.display = 'none';
+            }
+            
+            // Reload the page after a short delay
+            setTimeout(function() {
+                window.location.reload();
+            }, 500);
+        }
+        
+        // Initialize the game when the page loads
+        window.addEventListener('load', function() {
+            console.log("Window loaded, initializing game...");
+            
+            // Initialize the game
+            init();
+        });
+
+        function showInstructions() {
+            // Reset game state
+            isPaused = false;
+            isGameActive = false;
+            
+            // Clear any existing timers
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+            
+            // Hide game elements
+            document.getElementById('pauseMenu').style.display = 'none';
+            document.getElementById('crosshair').style.display = 'none';
+            
+            // Show loading screen with instructions
+            document.getElementById('loadingScreen').style.display = 'flex';
+            
+            // Reset game variables
+            cpw = 0;
+            budget = initialBudget;
+            totalSpent = 0;
+            wallets = 0;
+            gameTimer = 60;
+            
+            // Update UI elements
+            document.getElementById('cpwValue').textContent = "None";
+            document.getElementById('scoreValue').textContent = "0";
+            document.getElementById('budgetValue').textContent = budget.toFixed(2);
+            document.getElementById('timerValue').textContent = gameTimer;
+            document.getElementById('budgetWarning').style.display = 'none';
+            document.getElementById('cpwWarning').style.display = 'none';
+            document.getElementById('timerWarning').style.display = 'none';
+            
+            // Clear any arrows
+            for (const arrow of arrows) {
+                scene.remove(arrow);
+            }
+            arrows = [];
+            
+            // Unlock controls
+            if (controls) {
+                controls.unlock();
+            }
+        }
     </script>
 </body>
 </html> 
